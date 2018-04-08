@@ -1,5 +1,6 @@
 ﻿using System;
 using Hangfire.Couchbase;
+using Couchbase.Configuration.Client;
 
 // ReSharper disable UnusedMember.Global
 namespace Hangfire
@@ -12,18 +13,19 @@ namespace Hangfire
         /// <summary>
         /// Enables to attach Couchbase to Hangfire
         /// </summary>
-        /// <param name="configuration">The IGlobalConfiguration object</param>
-        /// <param name="configurationSectionName">The configuration section name</param>
-        /// <param name="bucket">The name of the bucket to connect with</param>
+        /// <param name="global">The IGlobalConfiguration object</param>
+        /// <param name="configuration">The configuration</param>
+        /// <param name="defaultBucket">The default name of the bucket to use</param>
+        /// <param name="options">The CoubaseStorageOptions object to override any of the options</param>
         /// <returns></returns>
-        public static IGlobalConfiguration<CouchbaseStorage> UseAzureDocumentDbStorage(this IGlobalConfiguration configuration, string configurationSectionName, string bucket = "default", CouchbaseStorageOptions options = null)
+        public static IGlobalConfiguration<CouchbaseStorage> UseCouchbaseStorage(this IGlobalConfiguration global, ClientConfiguration configuration, string defaultBucket = "default", CouchbaseStorageOptions options = null)
         {
+            if (global == null) throw new ArgumentNullException(nameof(global));
             if (configuration == null) throw new ArgumentNullException(nameof(configuration));
-            if (string.IsNullOrEmpty(configurationSectionName)) throw new ArgumentNullException(nameof(configurationSectionName));
-            if (string.IsNullOrEmpty(bucket)) throw new ArgumentNullException(nameof(bucket));
+            if (string.IsNullOrEmpty(defaultBucket)) throw new ArgumentNullException(nameof(defaultBucket));
 
-            CouchbaseStorage storage = new CouchbaseStorage(configurationSectionName, bucket, options);
-            return configuration.UseStorage(storage);
+            CouchbaseStorage storage = new CouchbaseStorage(configuration, defaultBucket, options);
+            return global.UseStorage(storage);
         }
     }
 }

@@ -7,6 +7,7 @@ using Hangfire.Storage;
 using Hangfire.Logging;
 using Newtonsoft.Json;
 using Couchbase.Core.Serialization;
+using Couchbase.Configuration.Client;
 
 using Hangfire.Couchbase.Queue;
 using Hangfire.Couchbase.Documents.Json;
@@ -14,7 +15,7 @@ using Hangfire.Couchbase.Documents.Json;
 namespace Hangfire.Couchbase
 {
     /// <summary>
-    /// DocumentDbStorage extend the storage option for Hangfire.
+    /// CouchbaseStorage extend the storage option for Hangfire.
     /// </summary>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1001:TypesThatOwnDisposableFieldsShouldBeDisposable")]
     public sealed class CouchbaseStorage : JobStorage
@@ -26,15 +27,15 @@ namespace Hangfire.Couchbase
         internal Cluster Client { get; }
 
         /// <summary>
-        /// Initializes the DocumentDbStorage form the url auth secret provide.
+        /// Initializes the CouchbaseStorage form the url auth secret provide.
         /// </summary>
-        /// <param name="configurationSectionName">The configuration section name</param>
-        /// <param name="bucket">The name of the database to connect with</param>
-        /// <param name="options">The DocumentDbStorageOptions object to override any of the options</param>
-        public CouchbaseStorage(string configurationSectionName, string bucket = "default", CouchbaseStorageOptions options = null)
+        /// <param name="configuration">The configuration</param>
+        /// <param name="defaultBucket">The default name of the bucket to use</param>
+        /// <param name="options">The CoubaseStorageOptions object to override any of the options</param>
+        public CouchbaseStorage(ClientConfiguration configuration, string defaultBucket = "default", CouchbaseStorageOptions options = null)
         {
             Options = options ?? new CouchbaseStorageOptions();
-            Options.Bucket = bucket;
+            Options.Bucket = defaultBucket;
 
             JsonSerializerSettings settings = new JsonSerializerSettings
             {
@@ -43,7 +44,7 @@ namespace Hangfire.Couchbase
                 ContractResolver = new DocumentContractResolver()
             };
 
-            Client = new Cluster(configurationSectionName);
+            Client = new Cluster(configuration);
             Client.Configuration.Serializer = () => new DefaultSerializer(settings, settings);
 
             JobQueueProvider provider = new JobQueueProvider(this);
@@ -60,7 +61,7 @@ namespace Hangfire.Couchbase
         /// 
         /// </summary>
         /// <returns></returns>
-        public override IMonitoringApi GetMonitoringApi() => new DocumentDbMonitoringApi(this);
+        public override IMonitoringApi GetMonitoringApi() => new CouchbaseMonitoringApi(this);
 
 #pragma warning disable 618
         /// <summary>
@@ -80,13 +81,12 @@ namespace Hangfire.Couchbase
         /// <param name="logger"></param>
         public override void WriteOptionsToLog(ILog logger)
         {
-            logger.Info("Using the following options for Azure DocumentDB job storage:");
+            logger.Info("Using the following options for Couchbase job storage:");
             logger.Info($"     Couchbase Url: {string.Join(",", Client.Configuration.Servers.Select(s => s.AbsoluteUri))}");
             logger.Info($"     Request Timeout: {Options.RequestTimeout}");
             logger.Info($"     Counter Agggerate Interval: {Options.CountersAggregateInterval.TotalSeconds} seconds");
             logger.Info($"     Queue Poll Interval: {Options.QueuePollInterval.TotalSeconds} seconds");
             logger.Info($"     Expiration Check Interval: {Options.ExpirationCheckInterval.TotalSeconds} seconds");
-            logger.Info($"     Queue: {string.Join(",", Options.Queues)}");
         }
 
         /// <summary>

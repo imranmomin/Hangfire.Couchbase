@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using System.Collections.Generic;
 
 using Couchbase.Core;
@@ -10,15 +11,36 @@ namespace Hangfire.Couchbase.Queue
     internal class JobQueueMonitoringApi : IPersistentJobQueueMonitoringApi
     {
         private readonly CouchbaseStorage storage;
-        private readonly IEnumerable<string> queues;
+        private readonly List<string> queuesCache = new List<string>();
+        private DateTime cacheUpdated;
+        private readonly object cacheLock = new object();
+        private static readonly TimeSpan queuesCacheTimeout = TimeSpan.FromSeconds(5);
 
-        public JobQueueMonitoringApi(CouchbaseStorage storage)
+        public JobQueueMonitoringApi(CouchbaseStorage storage) => this.storage = storage;
+
+        public IEnumerable<string> GetQueues()
         {
-            this.storage = storage;
-            queues = storage.Options.Queues;
-        }
+            lock (cacheLock)
+            {
+                if (queuesCache.Count == 0 || cacheUpdated.Add(queuesCacheTimeout) < DateTime.UtcNow)
+                {
+                    using (IBucket bucket = storage.Client.OpenBucket(storage.Options.Bucket))
+                    {
+                        BucketContext context = new BucketContext(bucket);
+                        IEnumerable<string> result = context.Query<Documents.Queue>()
+                            .Where(q => q.DocumentType == DocumentTypes.Queue)
+                            .Select(q => q.Name)
+                            .Distinct();
 
-        public IEnumerable<string> GetQueues() => queues;
+                        queuesCache.Clear();
+                        queuesCache.AddRange(result);
+                        cacheUpdated = DateTime.UtcNow;
+                    }
+                }
+
+                return queuesCache.ToList();
+            }
+        }
 
         public int GetEnqueuedCount(string queue)
         {
@@ -37,7 +59,6 @@ namespace Hangfire.Couchbase.Queue
                 return context.Query<Documents.Queue>()
                     .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue)
                     .Select(c => c.JobId)
-                    .AsEnumerable()
                     .Skip(from).Take(perPage)
                     .ToList();
             }

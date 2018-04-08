@@ -6,8 +6,8 @@ using System.Threading.Tasks;
 using Couchbase;
 using Couchbase.Core;
 using Couchbase.Linq;
-
 using Hangfire.Storage;
+using Hangfire.Couchbase.Documents;
 
 namespace Hangfire.Couchbase.Queue
 {
@@ -39,11 +39,8 @@ namespace Hangfire.Couchbase.Queue
                         using (IBucket bucket = storage.Client.OpenBucket(storage.Options.Bucket))
                         {
                             BucketContext context = new BucketContext(bucket);
-
                             Documents.Queue data = context.Query<Documents.Queue>()
-                                .Where(q => q.DocumentType == Documents.DocumentTypes.Queue && q.Name == queue)
-                                .AsEnumerable()
-                                .FirstOrDefault();
+                                .FirstOrDefault(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue);
 
                             if (data != null)
                             {
