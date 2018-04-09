@@ -30,6 +30,7 @@ namespace Hangfire.Couchbase.Queue
                         IEnumerable<string> result = context.Query<Documents.Queue>()
                             .Where(q => q.DocumentType == DocumentTypes.Queue)
                             .Select(q => q.Name)
+                            .AsEnumerable()
                             .Distinct();
 
                         queuesCache.Clear();
@@ -59,6 +60,7 @@ namespace Hangfire.Couchbase.Queue
                 return context.Query<Documents.Queue>()
                     .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue)
                     .Select(c => c.JobId)
+                    .AsEnumerable()
                     .Skip(from).Take(perPage)
                     .ToList();
             }

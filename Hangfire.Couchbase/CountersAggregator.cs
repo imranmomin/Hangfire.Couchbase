@@ -45,7 +45,7 @@ namespace Hangfire.Couchbase
                         .Where(c => c.DocumentType == DocumentTypes.Counter && c.Type == CounterTypes.Raw)
                         .ToList();
 
-                    Dictionary<string, (int Value, DateTime? ExpireOn)> counters = rawCounters.GroupBy(c => c.Key)
+                    Dictionary<string, (int Value, int? ExpireOn)> counters = rawCounters.GroupBy(c => c.Key)
                         .ToDictionary(k => k.Key, v => (Value: v.Sum(c => c.Value), ExpireOn: v.Max(c => c.ExpireOn)));
 
                     Array.ForEach(counters.Keys.ToArray(), key =>

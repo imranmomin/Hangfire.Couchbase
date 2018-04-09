@@ -1,15 +1,13 @@
 ﻿using System;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
-using System.Collections.Generic;
 
-using Couchbase;
 using Couchbase.Core;
 using Couchbase.Linq;
 using Hangfire.Server;
 using Hangfire.Logging;
 
+using Hangfire.Couchbase.Helper;
 using Hangfire.Couchbase.Documents;
 
 namespace Hangfire.Couchbase
@@ -42,21 +40,14 @@ namespace Hangfire.Couchbase
 
                     using (new CouchbaseDistributedLock(DISTRIBUTED_LOCK_KEY, defaultLockTimeout, storage))
                     {
-                        List<string> ids = context.Query<DocumentBase>()
-                            .Where(d => d.DocumentType == type && d.ExpireOn.HasValue && d.ExpireOn < DateTime.UtcNow)
+                        string[] ids = context.Query<DocumentBase>()
+                            .Where(d => d.DocumentType == type && d.ExpireOn.HasValue && d.ExpireOn < DateTime.UtcNow.ToEpoch())
                             .Select(d => d.Id)
-                            .ToList();
+                            .ToArray();
+                        
+                        Array.ForEach(ids, id => bucket.RemoveAsync(id).Wait(cancellationToken));
 
-                        if (ids.Count > 0)
-                        {
-                            Task<IDocumentResult<dynamic>[]> task = bucket.GetDocumentsAsync<dynamic>(ids);
-                            task.Wait(cancellationToken);
-
-                            List<IDocument<dynamic>> records = task.Result.Select(d => d.Document).Cast<IDocument<dynamic>>().ToList();
-                            bucket.RemoveAsync(records).Wait(cancellationToken);
-                        }
-
-                        logger.Trace($"Outdated records removed {ids.Count} records from the '{type}' document.");
+                        logger.Trace($"Outdated records removed {ids.Length} records from the '{type}' document.");
                     }
 
                     cancellationToken.WaitHandle.WaitOne(checkInterval);

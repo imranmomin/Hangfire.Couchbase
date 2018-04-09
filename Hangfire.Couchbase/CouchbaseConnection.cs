@@ -11,6 +11,7 @@ using Hangfire.Common;
 using Hangfire.Storage;
 
 using Hangfire.Couchbase.Queue;
+using Hangfire.Couchbase.Helper;
 using Hangfire.Couchbase.Documents;
 
 namespace Hangfire.Couchbase
@@ -51,7 +52,7 @@ namespace Hangfire.Couchbase
                 InvocationData = invocationData,
                 Arguments = invocationData.Arguments,
                 CreatedOn = createdAt,
-                ExpireOn = createdAt.Add(expireIn),
+                ExpireOn = createdAt.Add(expireIn).ToEpoch(),
 
                 Parameters = parameters.Select(p => new Parameter
                 {
@@ -128,11 +129,17 @@ namespace Hangfire.Couchbase
 
             if (state != null)
             {
+                string ToProperCare(string key)
+                {
+                    if (string.IsNullOrEmpty(key)) return key;
+                    return char.ToUpper(key[0]) + key.Substring(1);
+                }
+
                 return new StateData
                 {
                     Name = state.Name,
                     Reason = state.Reason,
-                    Data = state.Data
+                    Data = state.Data.ToDictionary(k => ToProperCare(k.Key), v => v.Value)
                 };
             }
 
@@ -198,13 +205,13 @@ namespace Hangfire.Couchbase
             if (key == null) throw new ArgumentNullException(nameof(key));
 
             BucketContext context = new BucketContext(bucket);
-            DateTime? expireOn = context.Query<Set>()
+            int? expireOn = context.Query<Set>()
                 .Where(s => s.DocumentType == DocumentTypes.Set && s.Key == key)
                 .OrderByDescending(s => s.ExpireOn)
                 .Select(s => s.ExpireOn)
                 .FirstOrDefault();
 
-            return expireOn.HasValue ? expireOn.Value - DateTime.UtcNow : TimeSpan.FromSeconds(-1);
+            return expireOn.HasValue ? expireOn.Value.ToDateTime() - DateTime.UtcNow : TimeSpan.FromSeconds(-1);
         }
 
         public override List<string> GetRangeFromSet(string key, int startingFrom, int endingAt)
@@ -215,6 +222,7 @@ namespace Hangfire.Couchbase
             return context.Query<Set>()
                 .Where(s => s.DocumentType == DocumentTypes.Set && s.Key == key)
                 .Select(c => c.Value)
+                .AsEnumerable()
                 .Skip(startingFrom).Take(endingAt)
                 .ToList();
         }
@@ -261,6 +269,7 @@ namespace Hangfire.Couchbase
             return context.Query<Set>()
                  .Where(s => s.DocumentType == DocumentTypes.Set && s.Key == key)
                  .OrderBy(s => s.Score)
+                 .AsEnumerable()
                  .Skip((int)fromScore)
                  .Take((int)toScore)
                  .Select(s => s.Value)
@@ -368,7 +377,7 @@ namespace Hangfire.Couchbase
             {
                 Key = key,
                 Field = k.Key,
-                Value = k.Value
+                Value = k.Value.ToEpoch()
             }).ToArray();
 
             BucketContext context = new BucketContext(bucket);
@@ -409,13 +418,13 @@ namespace Hangfire.Couchbase
             if (key == null) throw new ArgumentNullException(nameof(key));
 
             BucketContext context = new BucketContext(bucket);
-            DateTime? expireOn = context.Query<Hash>()
+            int? expireOn = context.Query<Hash>()
                 .Where(h => h.DocumentType == DocumentTypes.Hash && h.Key == key)
                 .OrderByDescending(h => h.ExpireOn)
                 .Select(h => h.ExpireOn)
                 .FirstOrDefault();
 
-            return expireOn.HasValue ? expireOn.Value - DateTime.UtcNow : TimeSpan.FromSeconds(-1);
+            return expireOn.HasValue ? expireOn.Value.ToDateTime() - DateTime.UtcNow : TimeSpan.FromSeconds(-1);
         }
 
         #endregion
@@ -442,6 +451,7 @@ namespace Hangfire.Couchbase
                 .Where(l => l.DocumentType == DocumentTypes.List && l.Key == key)
                 .OrderByDescending(l => l.ExpireOn)
                 .Select(l => l.Value)
+                .AsEnumerable()
                 .Skip(startingFrom).Take(endingAt)
                 .ToList();
         }
@@ -451,13 +461,13 @@ namespace Hangfire.Couchbase
             if (key == null) throw new ArgumentNullException(nameof(key));
 
             BucketContext context = new BucketContext(bucket);
-            DateTime? expireOn = context.Query<List>()
+            int? expireOn = context.Query<List>()
                 .Where(l => l.DocumentType == DocumentTypes.List && l.Key == key)
                 .OrderByDescending(l => l.ExpireOn)
                 .Select(l => l.ExpireOn)
                 .FirstOrDefault();
 
-            return expireOn.HasValue ? expireOn.Value - DateTime.UtcNow : TimeSpan.FromSeconds(-1);
+            return expireOn.HasValue ? expireOn.Value.ToDateTime() - DateTime.UtcNow : TimeSpan.FromSeconds(-1);
         }
 
         public override long GetListCount(string key)

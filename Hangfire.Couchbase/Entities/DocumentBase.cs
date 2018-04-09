@@ -11,8 +11,7 @@ namespace Hangfire.Couchbase.Documents
         public string Id { get; set; } = Guid.NewGuid().ToString();
 
         [JsonProperty("expire_on")]
-        [JsonConverter(typeof(UnixDateTimeConverter))]
-        public DateTime? ExpireOn { get; set; }
+        public int? ExpireOn { get; set; }
 
         [JsonProperty("type")]
         public abstract DocumentTypes DocumentType { get; }

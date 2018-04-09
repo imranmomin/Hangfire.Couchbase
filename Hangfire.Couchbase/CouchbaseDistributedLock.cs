@@ -6,6 +6,7 @@ using Couchbase;
 using Couchbase.Core;
 using Couchbase.Linq;
 
+using Hangfire.Couchbase.Helper;
 using Hangfire.Couchbase.Documents;
 
 namespace Hangfire.Couchbase
@@ -44,7 +45,7 @@ namespace Hangfire.Couchbase
                 bool exists = context.Query<Lock>().Any(l => l.DocumentType == DocumentTypes.Lock && l.Name == name);
                 if (exists == false)
                 {
-                    Lock @lock = new Lock { Name = name, ExpireOn = DateTime.UtcNow.Add(timeout) };
+                    Lock @lock = new Lock { Name = name, ExpireOn = DateTime.UtcNow.Add(timeout).ToEpoch() };
                     Task<IOperationResult<Lock>> task = bucket.InsertAsync(@lock.Id, @lock);
                     Task continueTask = task.ContinueWith(t => resourceId = @lock.Id, TaskContinuationOptions.OnlyOnRanToCompletion);
                     continueTask.Wait();

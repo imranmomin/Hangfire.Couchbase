@@ -9,6 +9,7 @@ using Hangfire.States;
 using Hangfire.Storage;
 
 using Hangfire.Couchbase.Queue;
+using Hangfire.Couchbase.Helper;
 using Hangfire.Couchbase.Documents;
 
 namespace Hangfire.Couchbase
@@ -75,7 +76,7 @@ namespace Hangfire.Couchbase
                     Key = key,
                     Type = CounterTypes.Raw,
                     Value = -1,
-                    ExpireOn = DateTime.UtcNow.Add(expireIn)
+                    ExpireOn = DateTime.UtcNow.Add(expireIn).ToEpoch()
                 };
 
                 bucket.Insert(data.Id, data);
@@ -111,7 +112,7 @@ namespace Hangfire.Couchbase
                     Key = key,
                     Type = CounterTypes.Raw,
                     Value = 1,
-                    ExpireOn = DateTime.UtcNow.Add(expireIn)
+                    ExpireOn = DateTime.UtcNow.Add(expireIn).ToEpoch()
                 };
 
                 bucket.Insert(data.Id, data);
@@ -133,7 +134,7 @@ namespace Hangfire.Couchbase
                 if (result.Success && result.Content != null)
                 {
                     Job data = result.Content;
-                    data.ExpireOn = DateTime.UtcNow.Add(expireIn);
+                    data.ExpireOn = DateTime.UtcNow.Add(expireIn).ToEpoch();
                     bucket.Upsert(jobId, data);
                 }
             });
@@ -297,7 +298,7 @@ namespace Hangfire.Couchbase
                 {
                     Key = key,
                     Field = k.Key,
-                    Value = k.Value
+                    Value = k.Value.ToEpoch()
                 }).ToArray();
                 
                 BucketContext context = new BucketContext(bucket);

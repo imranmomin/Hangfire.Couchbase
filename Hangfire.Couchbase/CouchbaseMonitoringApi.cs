@@ -10,6 +10,7 @@ using Hangfire.Storage;
 using Hangfire.Storage.Monitoring;
 
 using Hangfire.Couchbase.Queue;
+using Hangfire.Couchbase.Helper;
 using Hangfire.Couchbase.Documents;
 
 namespace Hangfire.Couchbase
@@ -53,6 +54,7 @@ namespace Hangfire.Couchbase
                 BucketContext context = new BucketContext(bucket);
                 return context.Query<Documents.Server>()
                     .Where(s => s.DocumentType == DocumentTypes.Server)
+                    .AsEnumerable()
                     .Select(server => new ServerDto
                     {
                         Name = server.ServerId,
@@ -77,22 +79,29 @@ namespace Hangfire.Couchbase
                     InvocationData invocationData = job.InvocationData;
                     invocationData.Arguments = job.Arguments;
 
+                    string ToProperCare(string key)
+                    {
+                        if (string.IsNullOrEmpty(key)) return key;
+                        return char.ToUpper(key[0]) + key.Substring(1);
+                    }
+
                     BucketContext context = new BucketContext(bucket);
                     List<StateHistoryDto> states = context.Query<State>()
                         .Where(s => s.JobId == jobId && s.DocumentType == DocumentTypes.State)
+                        .AsEnumerable()
                         .Select(s => new StateHistoryDto
                         {
-                            Data = s.Data,
+                            Data = s.Data.ToDictionary(k => ToProperCare(k.Key), v => v.Value),
                             CreatedAt = s.CreatedOn,
                             Reason = s.Reason,
                             StateName = s.Name
                         }).ToList();
-
+                    
                     return new JobDetailsDto
                     {
                         Job = invocationData.Deserialize(),
                         CreatedAt = job.CreatedOn,
-                        ExpireAt = job.ExpireOn,
+                        ExpireAt = job.ExpireOn?.ToDateTime(),
                         Properties = job.Parameters.ToDictionary(p => p.Name, p => p.Value),
                         History = states
                     };
@@ -132,6 +141,7 @@ namespace Hangfire.Couchbase
                 // get sum of stats:succeeded counters  raw / aggregate
                 Dictionary<string, long> counters = context.Query<Counter>()
                     .Where(c => c.DocumentType == DocumentTypes.Counter && (c.Key == "stats:succeeded" || c.Key == "stats:deleted"))
+                    .AsEnumerable()
                     .GroupBy(c => c.Key)
                     .ToDictionary(g => g.Key, g => (long)g.Sum(c => c.Value));
 
@@ -253,21 +263,29 @@ namespace Hangfire.Couchbase
                 BucketContext context = new BucketContext(bucket);
 
                 filterJobs = context.Query<Documents.Job>()
-                   .Where(j => j.DocumentType == DocumentTypes.Job && j.StateName == stateName)
-                   .OrderByDescending(j => j.CreatedOn)
-                   .Skip(from).Take(count)
-                   .ToList();
+                    .Where(j => j.DocumentType == DocumentTypes.Job && j.StateName == stateName)
+                    .OrderByDescending(j => j.CreatedOn)
+                    .AsEnumerable()
+                    .Skip(from).Take(count)
+                    .ToList();
 
                 states = context.Query<State>()
-                  .Where(s => s.DocumentType == DocumentTypes.State)
-                  .AsEnumerable()
-                  .Where(s => filterJobs.Any(j => j.StateId == s.Id))
-                  .ToList();
+                    .Where(s => s.DocumentType == DocumentTypes.State)
+                    .AsEnumerable()
+                    .Where(s => filterJobs.Any(j => j.StateId == s.Id))
+                    .ToList();
+            }
+
+            string ToProperCare(string key)
+            {
+                if (string.IsNullOrEmpty(key)) return key;
+                return char.ToUpper(key[0]) + key.Substring(1);
             }
 
             filterJobs.ForEach(job =>
             {
-                State state = states.SingleOrDefault(s => s.Id == job.StateId);
+                State state = states.Single(s => s.Id == job.StateId);
+                state.Data = state.Data.ToDictionary(k => ToProperCare(k.Key), v => v.Value);
 
                 InvocationData invocationData = job.InvocationData;
                 invocationData.Arguments = job.Arguments;
@@ -291,16 +309,17 @@ namespace Hangfire.Couchbase
             {
                 BucketContext context = new BucketContext(bucket);
                 queues = context.Query<Documents.Queue>()
-                   .Where(q => q.Name == queue && q.DocumentType == DocumentTypes.Queue)
-                   .Skip(from).Take(count)
-                   .ToList();
+                    .Where(q => q.Name == queue && q.DocumentType == DocumentTypes.Queue)
+                    .AsEnumerable()
+                    .Skip(from).Take(count)
+                    .ToList();
 
                 filterJobs = context.Query<Documents.Job>()
-                  .Where(j => j.DocumentType == DocumentTypes.Job)
-                  .OrderByDescending(j => j.CreatedOn)
-                  .AsEnumerable()
-                  .Where(j => queues.Any(q => q.JobId == j.Id))
-                  .ToList();
+                    .Where(j => j.DocumentType == DocumentTypes.Job)
+                    .OrderByDescending(j => j.CreatedOn)
+                    .AsEnumerable()
+                    .Where(j => queues.Any(q => q.JobId == j.Id))
+                    .ToList();
 
             }
 
