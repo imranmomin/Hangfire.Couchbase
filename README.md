@@ -2,7 +2,7 @@
 
 [![Official Site](https://img.shields.io/badge/site-hangfire.io-blue.svg)](http://hangfire.io)
 [![Latest version](https://img.shields.io/nuget/v/Hangfire.Couchbase.svg)](https://www.nuget.org/packages/Hangfire.Couchbase)
-[![Build status](https://ci.appveyor.com/api/projects/status/uvxh94dhxcokga47?svg=true)](https://ci.appveyor.com/project/imranmomin/hangfire-couchbase)
+[![Build status](https://ci.appveyor.com/api/projects/status/4rkyu51n3ybdguiu?svg=true)](https://ci.appveyor.com/project/imranmomin/hangfire-couchbase)
 
 This repo will add a [Couchbase](https://www.couchbase.com/products/server) N1QL storage support to [Hangfire](http://hangfire.io) - fire-and-forget, delayed and recurring tasks runner for .NET. Scalable and reliable background job runner. Supports multiple servers, CPU and I/O intensive, long-running and short-running jobs.
 
