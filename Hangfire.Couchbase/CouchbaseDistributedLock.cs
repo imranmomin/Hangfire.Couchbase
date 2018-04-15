@@ -18,7 +18,7 @@ namespace Hangfire.Couchbase
 
         public CouchbaseDistributedLock(string resource, TimeSpan timeout, CouchbaseStorage storage)
         {
-            bucket = storage.Client.OpenBucket(storage.Options.Bucket);
+            bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket);
             Acquire(resource, timeout);
         }
 
@@ -32,7 +32,7 @@ namespace Hangfire.Couchbase
 
             bucket?.Dispose();
         }
-
+        
         private void Acquire(string name, TimeSpan timeout)
         {
             System.Diagnostics.Stopwatch acquireStart = new System.Diagnostics.Stopwatch();

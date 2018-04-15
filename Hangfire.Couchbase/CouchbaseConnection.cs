@@ -28,16 +28,13 @@ namespace Hangfire.Couchbase
             Storage = storage;
             QueueProviders = storage.QueueProviders;
 
-            bucket = storage.Client.OpenBucket(storage.Options.Bucket);
+            bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket);
         }
 
         public override IDisposable AcquireDistributedLock(string resource, TimeSpan timeout) => new CouchbaseDistributedLock(resource, timeout, Storage);
         public override IWriteOnlyTransaction CreateWriteTransaction() => new CouchbaseWriteOnlyTransaction(this);
 
-        public override void Dispose()
-        {
-            bucket?.Dispose();
-        }
+        public override void Dispose() => bucket?.Dispose();
 
         #region Job
 
@@ -53,12 +50,7 @@ namespace Hangfire.Couchbase
                 Arguments = invocationData.Arguments,
                 CreatedOn = createdAt,
                 ExpireOn = createdAt.Add(expireIn).ToEpoch(),
-
-                Parameters = parameters.Select(p => new Parameter
-                {
-                    Name = p.Key,
-                    Value = p.Value
-                }).ToArray()
+                Parameters = parameters
             };
 
             IOperationResult<Documents.Job> response = bucket.Insert(entityJob.Id, entityJob);
@@ -129,17 +121,11 @@ namespace Hangfire.Couchbase
 
             if (state != null)
             {
-                string ToProperCare(string key)
-                {
-                    if (string.IsNullOrEmpty(key)) return key;
-                    return char.ToUpper(key[0]) + key.Substring(1);
-                }
-
                 return new StateData
                 {
                     Name = state.Name,
                     Reason = state.Reason,
-                    Data = state.Data.ToDictionary(k => ToProperCare(k.Key), v => v.Value)
+                    Data = state.Data
                 };
             }
 
@@ -156,12 +142,7 @@ namespace Hangfire.Couchbase
             if (name == null) throw new ArgumentNullException(nameof(name));
 
             IDocumentResult<Documents.Job> result = bucket.GetDocument<Documents.Job>(id);
-            if (result.Success && result.Content != null)
-            {
-                return result.Content.Parameters.Where(p => p.Name == name).Select(p => p.Value).FirstOrDefault();
-            }
-
-            return null;
+            return result.Success && result.Content != null && result.Content.Parameters.TryGetValue(name, out string value) ? value : null;
         }
 
         public override void SetJobParameter(string id, string name, string value)
@@ -174,24 +155,14 @@ namespace Hangfire.Couchbase
             if (result.Success && result.Content != null)
             {
                 Documents.Job data = result.Content;
-                Parameter parameter = data.Parameters.SingleOrDefault(s => s.Name == name);
-                if (parameter != null)
+                if (data.Parameters.ContainsKey(name))
                 {
-                    parameter.Value = value;
+                    data.Parameters[name] = value;
                 }
                 else
                 {
-                    parameter = new Parameter
-                    {
-                        Name = name,
-                        Value = value
-                    };
-
-                    List<Parameter> parameters = data.Parameters.ToList();
-                    parameters.Add(parameter);
-                    data.Parameters = parameters.ToArray();
+                    data.Parameters.Add(name, value);
                 }
-
                 bucket.Upsert(id, data);
             }
         }
@@ -377,7 +348,7 @@ namespace Hangfire.Couchbase
             {
                 Key = key,
                 Field = k.Key,
-                Value = k.Value.ToEpoch()
+                Value = k.Value.TryParseToEpoch()
             }).ToArray();
 
             BucketContext context = new BucketContext(bucket);

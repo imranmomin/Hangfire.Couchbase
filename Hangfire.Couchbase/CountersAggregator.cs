@@ -21,13 +21,11 @@ namespace Hangfire.Couchbase
         private static readonly ILog logger = LogProvider.For<CountersAggregator>();
         private const string DISTRIBUTED_LOCK_KEY = "countersaggragator";
         private static readonly TimeSpan defaultLockTimeout = TimeSpan.FromMinutes(5);
-        private readonly TimeSpan checkInterval;
         private readonly CouchbaseStorage storage;
 
         public CountersAggregator(CouchbaseStorage storage)
         {
             this.storage = storage ?? throw new ArgumentNullException(nameof(storage));
-            checkInterval = storage.Options.CountersAggregateInterval;
         }
 
         public void Execute(CancellationToken cancellationToken)
@@ -36,7 +34,7 @@ namespace Hangfire.Couchbase
 
             using (new CouchbaseDistributedLock(DISTRIBUTED_LOCK_KEY, defaultLockTimeout, storage))
             {
-                using (IBucket bucket = storage.Client.OpenBucket(storage.Options.Bucket))
+                using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
                 {
                     // context
                     BucketContext context = new BucketContext(bucket);
@@ -55,9 +53,7 @@ namespace Hangfire.Couchbase
                         if (counters.TryGetValue(key, out var data))
                         {
                             Counter aggregated = context.Query<Counter>()
-                                .FirstOrDefault(c =>
-                                    c.DocumentType == DocumentTypes.Counter && c.Type == CounterTypes.Aggregrate &&
-                                    c.Key == key);
+                                .FirstOrDefault(c => c.DocumentType == DocumentTypes.Counter && c.Type == CounterTypes.Aggregrate && c.Key == key);
 
                             if (aggregated == null)
                             {
@@ -75,31 +71,29 @@ namespace Hangfire.Couchbase
                                 aggregated.ExpireOn = data.ExpireOn;
                             }
 
+                            // ReSharper disable once AccessToDisposedClosure
                             Task<IOperationResult<Counter>> task = bucket.UpsertAsync(aggregated.Id, aggregated);
                             Task continueTask = task.ContinueWith(t =>
                             {
                                 if (t.Result.Success)
                                 {
-                                    List<IDocument<Counter>> s = rawCounters
+                                    List<IDocument<Counter>> documents = rawCounters
                                         .Where(counter => counter.Key == key)
                                         .Select(counter => new Document<Counter> { Id = counter.Id, Content = counter })
                                         .Cast<IDocument<Counter>>()
                                         .ToList();
 
-                                    using (IBucket removeBucket = storage.Client.OpenBucket(storage.Options.Bucket))
-                                    {
-                                        removeBucket.RemoveAsync(s).Wait(cancellationToken);
-                                    }
+                                    // ReSharper disable once AccessToDisposedClosure
+                                    bucket.RemoveAsync(documents).Wait(cancellationToken);
                                 }
                             }, cancellationToken, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Current);
-
                             continueTask.Wait(cancellationToken);
                         }
                     });
                 }
 
                 logger.Trace("Records from the 'Counter' table aggregated.");
-                cancellationToken.WaitHandle.WaitOne(checkInterval);
+                cancellationToken.WaitHandle.WaitOne(storage.Options.CountersAggregateInterval);
             }
         }
 

@@ -10,7 +10,7 @@ namespace Hangfire.Couchbase.Queue
 
         public FetchedJob(CouchbaseStorage storage, Documents.Queue data)
         {
-            bucket = storage.Client.OpenBucket(storage.Options.Bucket);
+            bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket);
 
             Id = data.Id;
             JobId = data.JobId;

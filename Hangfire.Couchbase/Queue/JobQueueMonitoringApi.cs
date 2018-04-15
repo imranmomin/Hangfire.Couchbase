@@ -24,7 +24,7 @@ namespace Hangfire.Couchbase.Queue
             {
                 if (queuesCache.Count == 0 || cacheUpdated.Add(queuesCacheTimeout) < DateTime.UtcNow)
                 {
-                    using (IBucket bucket = storage.Client.OpenBucket(storage.Options.Bucket))
+                    using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
                     {
                         BucketContext context = new BucketContext(bucket);
                         IEnumerable<string> result = context.Query<Documents.Queue>()
@@ -45,7 +45,7 @@ namespace Hangfire.Couchbase.Queue
 
         public int GetEnqueuedCount(string queue)
         {
-            using (IBucket bucket = storage.Client.OpenBucket(storage.Options.Bucket))
+            using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
             {
                 BucketContext context = new BucketContext(bucket);
                 return context.Query<Documents.Queue>().Count(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue);
@@ -54,7 +54,7 @@ namespace Hangfire.Couchbase.Queue
 
         public IEnumerable<string> GetEnqueuedJobIds(string queue, int from, int perPage)
         {
-            using (IBucket bucket = storage.Client.OpenBucket(storage.Options.Bucket))
+            using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
             {
                 BucketContext context = new BucketContext(bucket);
                 return context.Query<Documents.Queue>()

@@ -10,7 +10,7 @@ namespace Hangfire.Couchbase
     /// </summary>
     public class CouchbaseStorageOptions
     {
-        internal string Bucket { get; set; }
+        internal string DefaultBucket { get; set; }
  
         /// <summary>
         /// Get or sets the request timemout for Couchbase client. Default value set to 30 seconds

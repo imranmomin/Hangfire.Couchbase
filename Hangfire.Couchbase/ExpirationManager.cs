@@ -20,18 +20,16 @@ namespace Hangfire.Couchbase
         private const string DISTRIBUTED_LOCK_KEY = "expirationmanager";
         private static readonly TimeSpan defaultLockTimeout = TimeSpan.FromMinutes(5);
         private static readonly DocumentTypes[] documents = { DocumentTypes.Lock, DocumentTypes.Job, DocumentTypes.List, DocumentTypes.Set, DocumentTypes.Hash, DocumentTypes.Counter };
-        private readonly TimeSpan checkInterval;
         private readonly CouchbaseStorage storage;
 
         public ExpirationManager(CouchbaseStorage storage)
         {
             this.storage = storage ?? throw new ArgumentNullException(nameof(storage));
-            checkInterval = storage.Options.ExpirationCheckInterval;
         }
 
         public void Execute(CancellationToken cancellationToken)
         {
-            using (IBucket bucket = storage.Client.OpenBucket(storage.Options.Bucket))
+            using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
             {
                 BucketContext context = new BucketContext(bucket);
                 foreach (DocumentTypes type in documents)
@@ -45,12 +43,13 @@ namespace Hangfire.Couchbase
                             .Select(d => d.Id)
                             .ToArray();
                         
+                        // ReSharper disable once AccessToDisposedClosure
                         Array.ForEach(ids, id => bucket.RemoveAsync(id).Wait(cancellationToken));
 
                         logger.Trace($"Outdated records removed {ids.Length} records from the '{type}' document.");
                     }
 
-                    cancellationToken.WaitHandle.WaitOne(checkInterval);
+                    cancellationToken.WaitHandle.WaitOne(storage.Options.ExpirationCheckInterval);
                 }
             }
         }

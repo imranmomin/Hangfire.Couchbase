@@ -24,7 +24,7 @@ namespace Hangfire.Couchbase
         {
             this.connection = connection;
             CouchbaseStorage storage = connection.Storage;
-            bucket = storage.Client.OpenBucket(storage.Options.Bucket);
+            bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket);
         }
 
         private void QueueCommand(Action command) => commands.Add(command);
@@ -298,7 +298,7 @@ namespace Hangfire.Couchbase
                 {
                     Key = key,
                     Field = k.Key,
-                    Value = k.Value.ToEpoch()
+                    Value = k.Value.TryParseToEpoch()
                 }).ToArray();
                 
                 BucketContext context = new BucketContext(bucket);

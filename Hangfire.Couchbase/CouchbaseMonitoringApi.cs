@@ -49,7 +49,7 @@ namespace Hangfire.Couchbase
 
         public IList<ServerDto> Servers()
         {
-            using (IBucket bucket = storage.Client.OpenBucket(storage.Options.Bucket))
+            using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
             {
                 BucketContext context = new BucketContext(bucket);
                 return context.Query<Documents.Server>()
@@ -70,7 +70,7 @@ namespace Hangfire.Couchbase
         {
             if (string.IsNullOrEmpty(jobId)) throw new ArgumentNullException(nameof(jobId));
 
-            using (IBucket bucket = storage.Client.OpenBucket(storage.Options.Bucket))
+            using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
             {
                 IDocumentResult<Documents.Job> result = bucket.GetDocument<Documents.Job>(jobId);
                 if (result.Success && result.Content != null)
@@ -78,20 +78,14 @@ namespace Hangfire.Couchbase
                     Documents.Job job = result.Content;
                     InvocationData invocationData = job.InvocationData;
                     invocationData.Arguments = job.Arguments;
-
-                    string ToProperCare(string key)
-                    {
-                        if (string.IsNullOrEmpty(key)) return key;
-                        return char.ToUpper(key[0]) + key.Substring(1);
-                    }
-
+                    
                     BucketContext context = new BucketContext(bucket);
                     List<StateHistoryDto> states = context.Query<State>()
                         .Where(s => s.JobId == jobId && s.DocumentType == DocumentTypes.State)
                         .AsEnumerable()
                         .Select(s => new StateHistoryDto
                         {
-                            Data = s.Data.ToDictionary(k => ToProperCare(k.Key), v => v.Value),
+                            Data = s.Data,
                             CreatedAt = s.CreatedOn,
                             Reason = s.Reason,
                             StateName = s.Name
@@ -102,7 +96,7 @@ namespace Hangfire.Couchbase
                         Job = invocationData.Deserialize(),
                         CreatedAt = job.CreatedOn,
                         ExpireAt = job.ExpireOn?.ToDateTime(),
-                        Properties = job.Parameters.ToDictionary(p => p.Name, p => p.Value),
+                        Properties = job.Parameters,
                         History = states
                     };
                 }
@@ -115,7 +109,7 @@ namespace Hangfire.Couchbase
         {
             Dictionary<string, long> results = new Dictionary<string, long>();
 
-            using (IBucket bucket = storage.Client.OpenBucket(storage.Options.Bucket))
+            using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
             {
                 //query context
                 BucketContext context = new BucketContext(bucket);
@@ -258,7 +252,7 @@ namespace Hangfire.Couchbase
             List<Documents.Job> filterJobs;
             List<State> states;
 
-            using (IBucket bucket = storage.Client.OpenBucket(storage.Options.Bucket))
+            using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
             {
                 BucketContext context = new BucketContext(bucket);
 
@@ -276,16 +270,10 @@ namespace Hangfire.Couchbase
                     .ToList();
             }
 
-            string ToProperCare(string key)
-            {
-                if (string.IsNullOrEmpty(key)) return key;
-                return char.ToUpper(key[0]) + key.Substring(1);
-            }
-
             filterJobs.ForEach(job =>
             {
                 State state = states.Single(s => s.Id == job.StateId);
-                state.Data = state.Data.ToDictionary(k => ToProperCare(k.Key), v => v.Value);
+                state.Data = state.Data;
 
                 InvocationData invocationData = job.InvocationData;
                 invocationData.Arguments = job.Arguments;
@@ -305,7 +293,7 @@ namespace Hangfire.Couchbase
             List<Documents.Queue> queues;
             List<Documents.Job> filterJobs;
 
-            using (IBucket bucket = storage.Client.OpenBucket(storage.Options.Bucket))
+            using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
             {
                 BucketContext context = new BucketContext(bucket);
                 queues = context.Query<Documents.Queue>()
@@ -363,7 +351,7 @@ namespace Hangfire.Couchbase
 
         private long GetNumberOfJobsByStateName(string state)
         {
-            using (IBucket bucket = storage.Client.OpenBucket(storage.Options.Bucket))
+            using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
             {
                 BucketContext context = new BucketContext(bucket);
                 return context.Query<Documents.Job>()
@@ -399,7 +387,7 @@ namespace Hangfire.Couchbase
             Dictionary<DateTime, long> result = keys.ToDictionary(k => k.Value, v => default(long));
             Dictionary<string, int> data;
 
-            using (IBucket bucket = storage.Client.OpenBucket(storage.Options.Bucket))
+            using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
             {
                 BucketContext context = new BucketContext(bucket);
                 data = context.Query<Counter>()

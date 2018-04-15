@@ -16,14 +16,9 @@ namespace Hangfire.Couchbase.Queue
         private readonly CouchbaseStorage storage;
         private const string DISTRIBUTED_LOCK_KEY = "locks:job:dequeue";
         private readonly TimeSpan defaultLockTimeout = TimeSpan.FromMinutes(1);
-        private readonly TimeSpan checkInterval;
         private readonly object syncLock = new object();
 
-        public JobQueue(CouchbaseStorage storage)
-        {
-            this.storage = storage;
-            checkInterval = storage.Options.QueuePollInterval;
-        }
+        public JobQueue(CouchbaseStorage storage) => this.storage = storage;
 
         public IFetchedJob Dequeue(string[] queues, CancellationToken cancellationToken)
         {
@@ -36,7 +31,7 @@ namespace Hangfire.Couchbase.Queue
                     using (new CouchbaseDistributedLock(DISTRIBUTED_LOCK_KEY, defaultLockTimeout, storage))
                     {
                         string queue = queues.ElementAt(index);
-                        using (IBucket bucket = storage.Client.OpenBucket(storage.Options.Bucket))
+                        using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
                         {
                             BucketContext context = new BucketContext(bucket);
                             Documents.Queue data = context.Query<Documents.Queue>()
@@ -52,7 +47,7 @@ namespace Hangfire.Couchbase.Queue
                     }
                 }
 
-                Thread.Sleep(checkInterval);
+                Thread.Sleep(storage.Options.QueuePollInterval);
                 index = (index + 1) % queues.Length;
             }
         }
@@ -65,7 +60,7 @@ namespace Hangfire.Couchbase.Queue
                 JobId = jobId
             };
 
-            using (IBucket bucket = storage.Client.OpenBucket(storage.Options.Bucket))
+            using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
             {
                 bucket.Insert(data.Id, data);
             }
