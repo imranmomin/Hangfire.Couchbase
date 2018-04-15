@@ -1,4 +1,5 @@
-﻿using Couchbase.Core;
+﻿using System;
+using Couchbase.Core;
 using Hangfire.Storage;
 
 // ReSharper disable once CheckNamespace
@@ -33,7 +34,8 @@ namespace Hangfire.Couchbase.Queue
             {
                 Id = Id,
                 Name = Queue,
-                JobId = JobId
+                JobId = JobId,
+                CreatedOn = DateTime.UtcNow
             };
 
             bucket.Insert(Id, data);

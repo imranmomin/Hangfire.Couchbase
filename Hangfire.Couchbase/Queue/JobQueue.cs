@@ -35,6 +35,7 @@ namespace Hangfire.Couchbase.Queue
                         {
                             BucketContext context = new BucketContext(bucket);
                             Documents.Queue data = context.Query<Documents.Queue>()
+                                .OrderBy(q => q.CreatedOn)
                                 .FirstOrDefault(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue);
 
                             if (data != null)
@@ -57,7 +58,8 @@ namespace Hangfire.Couchbase.Queue
             Documents.Queue data = new Documents.Queue
             {
                 Name = queue,
-                JobId = jobId
+                JobId = jobId,
+                CreatedOn = DateTime.UtcNow
             };
 
             using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
