@@ -1,6 +1,7 @@
 ﻿// ReSharper disable CheckNamespace
 
 using System;
+using System.Collections.Generic;
 
 using Newtonsoft.Json;
 using Hangfire.Storage;
@@ -23,7 +24,7 @@ namespace Hangfire.Couchbase.Documents
         public string StateName { get; set; }
 
         [JsonProperty("parameters")]
-        public Parameter[] Parameters { get; set; }
+        public IDictionary<string, string> Parameters { get; set; }
 
         [JsonProperty("created_on")]
         [JsonConverter(typeof(UnixDateTimeConverter))]
