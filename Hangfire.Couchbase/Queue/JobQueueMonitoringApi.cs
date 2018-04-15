@@ -59,10 +59,10 @@ namespace Hangfire.Couchbase.Queue
                 BucketContext context = new BucketContext(bucket);
                 return context.Query<Documents.Queue>()
                     .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue)
-                    .Select(c => c.JobId)
-                    .AsEnumerable()
+                    .OrderBy(q => q.CreatedOn)
                     .Skip(from).Take(perPage)
-                    .ToList();
+                    .Select(c => c.JobId)
+                    .AsEnumerable();
             }
         }
 

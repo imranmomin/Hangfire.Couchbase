@@ -117,7 +117,10 @@ namespace Hangfire.Couchbase
             if (jobId == null) throw new ArgumentNullException(nameof(jobId));
 
             BucketContext context = new BucketContext(bucket);
-            State state = context.Query<State>().FirstOrDefault(s => s.JobId == jobId && s.DocumentType == DocumentTypes.State);
+            State state = context.Query<State>()
+                .Where(s => s.JobId == jobId && s.DocumentType == DocumentTypes.State)
+                .OrderByDescending(s => s.CreatedOn)
+                .FirstOrDefault();
 
             if (state != null)
             {

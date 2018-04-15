@@ -54,6 +54,7 @@ namespace Hangfire.Couchbase
                 BucketContext context = new BucketContext(bucket);
                 return context.Query<Documents.Server>()
                     .Where(s => s.DocumentType == DocumentTypes.Server)
+                    .OrderByDescending(s => s.CreatedOn)
                     .AsEnumerable()
                     .Select(server => new ServerDto
                     {
@@ -78,10 +79,11 @@ namespace Hangfire.Couchbase
                     Documents.Job job = result.Content;
                     InvocationData invocationData = job.InvocationData;
                     invocationData.Arguments = job.Arguments;
-                    
+
                     BucketContext context = new BucketContext(bucket);
                     List<StateHistoryDto> states = context.Query<State>()
                         .Where(s => s.JobId == jobId && s.DocumentType == DocumentTypes.State)
+                        .OrderByDescending(s => s.CreatedOn)
                         .AsEnumerable()
                         .Select(s => new StateHistoryDto
                         {
@@ -90,7 +92,7 @@ namespace Hangfire.Couchbase
                             Reason = s.Reason,
                             StateName = s.Name
                         }).ToList();
-                    
+
                     return new JobDetailsDto
                     {
                         Job = invocationData.Deserialize(),
@@ -249,38 +251,30 @@ namespace Hangfire.Couchbase
         private JobList<T> GetJobsOnState<T>(string stateName, int from, int count, Func<State, Common.Job, T> selector)
         {
             List<KeyValuePair<string, T>> jobs = new List<KeyValuePair<string, T>>();
-            List<Documents.Job> filterJobs;
-            List<State> states;
 
             using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
             {
                 BucketContext context = new BucketContext(bucket);
 
-                filterJobs = context.Query<Documents.Job>()
+                List<Documents.Job> filterJobs = context.Query<Documents.Job>()
                     .Where(j => j.DocumentType == DocumentTypes.Job && j.StateName == stateName)
                     .OrderByDescending(j => j.CreatedOn)
-                    .AsEnumerable()
                     .Skip(from).Take(count)
                     .ToList();
 
-                states = context.Query<State>()
-                    .Where(s => s.DocumentType == DocumentTypes.State)
-                    .AsEnumerable()
-                    .Where(s => filterJobs.Any(j => j.StateId == s.Id))
-                    .ToList();
+                filterJobs.ForEach(job =>
+                {
+                    IDocumentResult<State> result = bucket.GetDocument<State>(job.StateId);
+                    if (result.Success && result.Content != null)
+                    {
+                        InvocationData invocationData = job.InvocationData;
+                        invocationData.Arguments = job.Arguments;
+
+                        T data = selector(result.Content, invocationData.Deserialize());
+                        jobs.Add(new KeyValuePair<string, T>(job.Id, data));
+                    }
+                });
             }
-
-            filterJobs.ForEach(job =>
-            {
-                State state = states.Single(s => s.Id == job.StateId);
-                state.Data = state.Data;
-
-                InvocationData invocationData = job.InvocationData;
-                invocationData.Arguments = job.Arguments;
-
-                T data = selector(state, invocationData.Deserialize());
-                jobs.Add(new KeyValuePair<string, T>(job.Id, data));
-            });
 
             return new JobList<T>(jobs);
         }
@@ -290,36 +284,31 @@ namespace Hangfire.Couchbase
             if (string.IsNullOrEmpty(queue)) throw new ArgumentNullException(nameof(queue));
 
             List<KeyValuePair<string, T>> jobs = new List<KeyValuePair<string, T>>();
-            List<Documents.Queue> queues;
-            List<Documents.Job> filterJobs;
 
             using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
             {
                 BucketContext context = new BucketContext(bucket);
-                queues = context.Query<Documents.Queue>()
-                    .Where(q => q.Name == queue && q.DocumentType == DocumentTypes.Queue)
-                    .AsEnumerable()
+                List<Documents.Queue> queues = context.Query<Documents.Queue>()
+                    .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue)
+                    .OrderBy(q => q.CreatedOn)
                     .Skip(from).Take(count)
                     .ToList();
 
-                filterJobs = context.Query<Documents.Job>()
-                    .Where(j => j.DocumentType == DocumentTypes.Job)
-                    .OrderByDescending(j => j.CreatedOn)
-                    .AsEnumerable()
-                    .Where(j => queues.Any(q => q.JobId == j.Id))
-                    .ToList();
+                queues.ForEach(queueItem =>
+                {
+                    IDocumentResult<Documents.Job> result = bucket.GetDocument<Documents.Job>(queueItem.JobId);
+                    if (result.Success && result.Content != null)
+                    {
+                        Documents.Job job = result.Content;
 
+                        InvocationData invocationData = job.InvocationData;
+                        invocationData.Arguments = job.Arguments;
+
+                        T data = selector(job.StateName, invocationData.Deserialize());
+                        jobs.Add(new KeyValuePair<string, T>(job.Id, data));
+                    }
+                });
             }
-
-            queues.ForEach(queueItem =>
-            {
-                Documents.Job job = filterJobs.Single(j => j.Id == queueItem.JobId);
-                InvocationData invocationData = job.InvocationData;
-                invocationData.Arguments = job.Arguments;
-
-                T data = selector(job.StateName, invocationData.Deserialize());
-                jobs.Add(new KeyValuePair<string, T>(job.Id, data));
-            });
 
             return new JobList<T>(jobs);
         }
