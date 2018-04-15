@@ -2,10 +2,12 @@
 using System.Collections.Generic;
 
 using Couchbase;
+using Couchbase.Core;
+using Newtonsoft.Json;
 using Hangfire.Server;
 using Hangfire.Storage;
 using Hangfire.Logging;
-using Newtonsoft.Json;
+using Couchbase.Management;
 using Couchbase.Core.Serialization;
 using Couchbase.Configuration.Client;
 
@@ -35,7 +37,7 @@ namespace Hangfire.Couchbase
         public CouchbaseStorage(ClientConfiguration configuration, string defaultBucket = "default", CouchbaseStorageOptions options = null)
         {
             Options = options ?? new CouchbaseStorageOptions();
-            Options.Bucket = defaultBucket;
+            Options.DefaultBucket = defaultBucket;
 
             JsonSerializerSettings settings = new JsonSerializerSettings
             {
@@ -44,8 +46,19 @@ namespace Hangfire.Couchbase
                 ContractResolver = new DocumentContractResolver()
             };
 
+            configuration.Serializer = () => new DefaultSerializer(settings, settings);
             Client = new Cluster(configuration);
-            Client.Configuration.Serializer = () => new DefaultSerializer(settings, settings);
+
+            string indexPrefix = $"IDX_{defaultBucket}";
+            IBucket bucket = Client.OpenBucket(Options.DefaultBucket);
+            {
+                IBucketManager manager = bucket.CreateManager(bucket.Configuration.Username, bucket.Configuration.Password);
+                manager.CreateN1qlPrimaryIndex($"{indexPrefix}_Primary", false);
+                manager.CreateN1qlIndex($"{indexPrefix}_Type", false, "type");
+                manager.CreateN1qlIndex($"{indexPrefix}_Id", false, "id");
+                manager.CreateN1qlIndex($"{indexPrefix}_Expire", false, "expire_on");
+                manager.CreateN1qlIndex($"{indexPrefix}_Name", false, "name");
+            }
 
             JobQueueProvider provider = new JobQueueProvider(this);
             QueueProviders = new PersistentJobQueueProviderCollection(provider);
@@ -93,6 +106,6 @@ namespace Hangfire.Couchbase
         /// Return the name of the database
         /// </summary>
         /// <returns></returns>
-        public override string ToString() => $"Bucket : {Options.Bucket}";
+        public override string ToString() => $"Bucket : {Options.DefaultBucket}";
     }
 }
