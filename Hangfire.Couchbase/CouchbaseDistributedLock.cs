@@ -32,7 +32,7 @@ namespace Hangfire.Couchbase
 
             bucket?.Dispose();
         }
-        
+
         private void Acquire(string name, TimeSpan timeout)
         {
             System.Diagnostics.Stopwatch acquireStart = new System.Diagnostics.Stopwatch();
@@ -47,7 +47,13 @@ namespace Hangfire.Couchbase
                 {
                     Lock @lock = new Lock { Name = name, ExpireOn = DateTime.UtcNow.Add(timeout).ToEpoch() };
                     Task<IOperationResult<Lock>> task = bucket.InsertAsync(@lock.Id, @lock);
-                    Task continueTask = task.ContinueWith(t => resourceId = @lock.Id, TaskContinuationOptions.OnlyOnRanToCompletion);
+                    Task continueTask = task.ContinueWith(t =>
+                    {
+                        if (t.Result.Success)
+                        {
+                            resourceId = @lock.Id;
+                        }
+                    }, TaskContinuationOptions.OnlyOnRanToCompletion);
                     continueTask.Wait();
                 }
 

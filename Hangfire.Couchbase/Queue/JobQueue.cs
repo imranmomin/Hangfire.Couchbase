@@ -35,8 +35,9 @@ namespace Hangfire.Couchbase.Queue
                         {
                             BucketContext context = new BucketContext(bucket);
                             Documents.Queue data = context.Query<Documents.Queue>()
+                                .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue)
                                 .OrderBy(q => q.CreatedOn)
-                                .FirstOrDefault(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue);
+                                .FirstOrDefault();
 
                             if (data != null)
                             {

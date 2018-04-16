@@ -82,7 +82,7 @@ namespace Hangfire.Couchbase
 
                     BucketContext context = new BucketContext(bucket);
                     List<StateHistoryDto> states = context.Query<State>()
-                        .Where(s => s.JobId == jobId && s.DocumentType == DocumentTypes.State)
+                        .Where(s => s.DocumentType == DocumentTypes.State && s.JobId == jobId)
                         .OrderByDescending(s => s.CreatedOn)
                         .AsEnumerable()
                         .Select(s => new StateHistoryDto
@@ -137,8 +137,8 @@ namespace Hangfire.Couchbase
                 // get sum of stats:succeeded counters  raw / aggregate
                 Dictionary<string, long> counters = context.Query<Counter>()
                     .Where(c => c.DocumentType == DocumentTypes.Counter && (c.Key == "stats:succeeded" || c.Key == "stats:deleted"))
-                    .AsEnumerable()
                     .GroupBy(c => c.Key)
+                    .AsEnumerable()
                     .ToDictionary(g => g.Key, g => (long)g.Sum(c => c.Value));
 
                 results = results.Concat(counters).ToDictionary(k => k.Key, v => v.Value);
