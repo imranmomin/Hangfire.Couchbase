@@ -194,8 +194,8 @@ namespace Hangfire.Couchbase
             BucketContext context = new BucketContext(bucket);
             return context.Query<Set>()
                 .Where(s => s.DocumentType == DocumentTypes.Set && s.Key == key)
-                .Skip(startingFrom).Take(endingAt)
                 .Select(c => c.Value)
+                .Skip(startingFrom).Take(endingAt)
                 .ToList();
         }
 
@@ -239,12 +239,11 @@ namespace Hangfire.Couchbase
 
             BucketContext context = new BucketContext(bucket);
             return context.Query<Set>()
-                 .Where(s => s.DocumentType == DocumentTypes.Set && s.Key == key)
-                 .OrderBy(s => s.Score)
-                 .Skip((int)fromScore)
-                 .Take((int)toScore)
-                 .Select(s => s.Value)
-                 .FirstOrDefault();
+                .Where(s => s.DocumentType == DocumentTypes.Set && s.Key == key)
+                .OrderBy(s => s.Score)
+                .Select(s => s.Value)
+                .Skip((int)fromScore).Take((int)toScore)
+                .FirstOrDefault();
         }
 
         #endregion
