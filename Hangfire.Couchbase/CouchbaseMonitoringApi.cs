@@ -82,7 +82,7 @@ namespace Hangfire.Couchbase
 
                     BucketContext context = new BucketContext(bucket);
                     List<StateHistoryDto> states = context.Query<State>()
-                        .Where(s => s.JobId == jobId && s.DocumentType == DocumentTypes.State)
+                        .Where(s => s.DocumentType == DocumentTypes.State && s.JobId == jobId)
                         .OrderByDescending(s => s.CreatedOn)
                         .AsEnumerable()
                         .Select(s => new StateHistoryDto

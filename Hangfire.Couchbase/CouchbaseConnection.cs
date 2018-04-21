@@ -118,7 +118,7 @@ namespace Hangfire.Couchbase
 
             BucketContext context = new BucketContext(bucket);
             State state = context.Query<State>()
-                .Where(s => s.JobId == jobId && s.DocumentType == DocumentTypes.State)
+                .Where(s => s.DocumentType == DocumentTypes.State && s.JobId == jobId)
                 .OrderByDescending(s => s.CreatedOn)
                 .FirstOrDefault();
 
@@ -152,7 +152,6 @@ namespace Hangfire.Couchbase
         {
             if (id == null) throw new ArgumentNullException(nameof(id));
             if (name == null) throw new ArgumentNullException(nameof(name));
-
 
             IDocumentResult<Documents.Job> result = bucket.GetDocument<Documents.Job>(id);
             if (result.Success && result.Content != null)
@@ -196,7 +195,6 @@ namespace Hangfire.Couchbase
             return context.Query<Set>()
                 .Where(s => s.DocumentType == DocumentTypes.Set && s.Key == key)
                 .Select(c => c.Value)
-                .AsEnumerable()
                 .Skip(startingFrom).Take(endingAt)
                 .ToList();
         }
@@ -241,13 +239,11 @@ namespace Hangfire.Couchbase
 
             BucketContext context = new BucketContext(bucket);
             return context.Query<Set>()
-                 .Where(s => s.DocumentType == DocumentTypes.Set && s.Key == key)
-                 .OrderBy(s => s.Score)
-                 .AsEnumerable()
-                 .Skip((int)fromScore)
-                 .Take((int)toScore)
-                 .Select(s => s.Value)
-                 .FirstOrDefault();
+                .Where(s => s.DocumentType == DocumentTypes.Set && s.Key == key)
+                .OrderBy(s => s.Score)
+                .Select(s => s.Value)
+                .Skip((int)fromScore).Take((int)toScore)
+                .FirstOrDefault();
         }
 
         #endregion
@@ -260,7 +256,8 @@ namespace Hangfire.Couchbase
             if (context == null) throw new ArgumentNullException(nameof(context));
 
             BucketContext bucketContext = new BucketContext(bucket);
-            Documents.Server server = bucketContext.Query<Documents.Server>().FirstOrDefault(s => s.DocumentType == DocumentTypes.Server && s.ServerId == serverId);
+            Documents.Server server = bucketContext.Query<Documents.Server>()
+                .FirstOrDefault(s => s.DocumentType == DocumentTypes.Server && s.ServerId == serverId);
 
             if (server == null)
             {
@@ -288,7 +285,8 @@ namespace Hangfire.Couchbase
             if (serverId == null) throw new ArgumentNullException(nameof(serverId));
 
             BucketContext context = new BucketContext(bucket);
-            Documents.Server server = context.Query<Documents.Server>().FirstOrDefault(s => s.DocumentType == DocumentTypes.Server && s.ServerId == serverId);
+            Documents.Server server = context.Query<Documents.Server>()
+                .FirstOrDefault(s => s.DocumentType == DocumentTypes.Server && s.ServerId == serverId);
 
             if (server != null)
             {
@@ -302,7 +300,9 @@ namespace Hangfire.Couchbase
             if (serverId == null) throw new ArgumentNullException(nameof(serverId));
 
             BucketContext context = new BucketContext(bucket);
-            Documents.Server server = context.Query<Documents.Server>().FirstOrDefault(s => s.DocumentType == DocumentTypes.Server && s.ServerId == serverId);
+            Documents.Server server = context.Query<Documents.Server>()
+                .FirstOrDefault(s => s.DocumentType == DocumentTypes.Server && s.ServerId == serverId);
+
             if (server != null)
             {
                 bucket.Remove(server.Id);
@@ -424,9 +424,8 @@ namespace Hangfire.Couchbase
             return context.Query<List>()
                 .Where(l => l.DocumentType == DocumentTypes.List && l.Key == key)
                 .OrderByDescending(l => l.ExpireOn)
-                .Select(l => l.Value)
-                .AsEnumerable()
                 .Skip(startingFrom).Take(endingAt)
+                .Select(l => l.Value)
                 .ToList();
         }
 

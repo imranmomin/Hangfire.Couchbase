@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Collections.Generic;
 
 using Couchbase;
@@ -71,23 +70,19 @@ namespace Hangfire.Couchbase
                                 aggregated.ExpireOn = data.ExpireOn;
                             }
 
-                            // ReSharper disable once AccessToDisposedClosure
-                            Task<IOperationResult<Counter>> task = bucket.UpsertAsync(aggregated.Id, aggregated);
-                            Task continueTask = task.ContinueWith(t =>
+                            IOperationResult<Counter> result = bucket.Upsert(aggregated.Id, aggregated);
+                            if (result.Success)
                             {
-                                if (t.Result.Success)
-                                {
-                                    List<IDocument<Counter>> documents = rawCounters
-                                        .Where(counter => counter.Key == key)
-                                        .Select(counter => new Document<Counter> { Id = counter.Id, Content = counter })
-                                        .Cast<IDocument<Counter>>()
-                                        .ToList();
+                                List<IDocument<Counter>> documents = rawCounters
+                                    .Where(counter => counter.Key == key)
+                                    .Select(counter => new Document<Counter> { Id = counter.Id, Content = counter })
+                                    .Cast<IDocument<Counter>>()
+                                    .ToList();
 
-                                    // ReSharper disable once AccessToDisposedClosure
-                                    bucket.RemoveAsync(documents).Wait(cancellationToken);
-                                }
-                            }, cancellationToken, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Current);
-                            continueTask.Wait(cancellationToken);
+                                // ReSharper disable once AccessToDisposedClosure
+                                bucket.RemoveAsync(documents).Wait(cancellationToken);
+                                logger.Trace($"Total {documents.Count} records from the 'Counter:{aggregated.Key}' were aggregated.");
+                            }
                         }
                     });
                 }

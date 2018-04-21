@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Linq;
-using System.Threading.Tasks;
 
 using Couchbase;
 using Couchbase.Core;
@@ -32,7 +31,7 @@ namespace Hangfire.Couchbase
 
             bucket?.Dispose();
         }
-        
+
         private void Acquire(string name, TimeSpan timeout)
         {
             System.Diagnostics.Stopwatch acquireStart = new System.Diagnostics.Stopwatch();
@@ -42,13 +41,13 @@ namespace Hangfire.Couchbase
 
             while (string.IsNullOrEmpty(resourceId))
             {
-                bool exists = context.Query<Lock>().Any(l => l.DocumentType == DocumentTypes.Lock && l.Name == name);
+                int expireOn = DateTime.UtcNow.ToEpoch();
+                bool exists = context.Query<Lock>().Any(l => l.DocumentType == DocumentTypes.Lock && l.Name == name && l.ExpireOn > expireOn);
                 if (exists == false)
                 {
                     Lock @lock = new Lock { Name = name, ExpireOn = DateTime.UtcNow.Add(timeout).ToEpoch() };
-                    Task<IOperationResult<Lock>> task = bucket.InsertAsync(@lock.Id, @lock);
-                    Task continueTask = task.ContinueWith(t => resourceId = @lock.Id, TaskContinuationOptions.OnlyOnRanToCompletion);
-                    continueTask.Wait();
+                    IOperationResult<Lock> result = bucket.Insert(@lock.Id, @lock);
+                    if (result.Success) resourceId = result.Id;
                 }
 
                 // check the timeout

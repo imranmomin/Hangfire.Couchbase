@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 
 using Couchbase;
 using Couchbase.Core;
@@ -15,7 +14,7 @@ namespace Hangfire.Couchbase.Queue
     {
         private readonly CouchbaseStorage storage;
         private const string DISTRIBUTED_LOCK_KEY = "locks:job:dequeue";
-        private readonly TimeSpan defaultLockTimeout = TimeSpan.FromMinutes(1);
+        private readonly TimeSpan defaultLockTimeout = TimeSpan.FromSeconds(15);
         private readonly object syncLock = new object();
 
         public JobQueue(CouchbaseStorage storage) => this.storage = storage;
@@ -35,14 +34,14 @@ namespace Hangfire.Couchbase.Queue
                         {
                             BucketContext context = new BucketContext(bucket);
                             Documents.Queue data = context.Query<Documents.Queue>()
+                                .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue)
                                 .OrderBy(q => q.CreatedOn)
-                                .FirstOrDefault(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue);
+                                .FirstOrDefault();
 
                             if (data != null)
                             {
-                                Task<IOperationResult> task = bucket.RemoveAsync(data.Id);
-                                task.Wait(cancellationToken);
-                                if (task.Result.Success) return new FetchedJob(storage, data);
+                                IOperationResult result = bucket.Remove(data.Id);
+                                if (result.Success) return new FetchedJob(storage, data);
                             }
                         }
                     }

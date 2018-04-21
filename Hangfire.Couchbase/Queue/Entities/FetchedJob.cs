@@ -32,7 +32,6 @@ namespace Hangfire.Couchbase.Queue
         {
             Documents.Queue data = new Documents.Queue
             {
-                Id = Id,
                 Name = Queue,
                 JobId = JobId,
                 CreatedOn = DateTime.UtcNow
