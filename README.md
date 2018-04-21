@@ -34,7 +34,7 @@ GlobalConfiguration.Configuration.UseStorage(storage);
 Hangfire.Couchbase.CouchbaseStorageOptions options = new Hangfire.Couchbase.CouchbaseStorageOptions
 {
     RequestTimeout = TimeSpan.FromSeconds(30),
-    ExpirationCheckInterval = TimeSpan.FromMinutes(15),
+    ExpirationCheckInterval = TimeSpan.FromSeconds(30),
     CountersAggregateInterval = TimeSpan.FromMinutes(1),
     QueuePollInterval = TimeSpan.FromSeconds(2)
 };
