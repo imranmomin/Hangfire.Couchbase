@@ -19,13 +19,10 @@ namespace Hangfire.Couchbase
     {
         private static readonly ILog logger = LogProvider.For<CountersAggregator>();
         private const string DISTRIBUTED_LOCK_KEY = "countersaggragator";
-        private static readonly TimeSpan defaultLockTimeout = TimeSpan.FromMinutes(5);
+        private static readonly TimeSpan defaultLockTimeout = TimeSpan.FromMinutes(2);
         private readonly CouchbaseStorage storage;
 
-        public CountersAggregator(CouchbaseStorage storage)
-        {
-            this.storage = storage ?? throw new ArgumentNullException(nameof(storage));
-        }
+        public CountersAggregator(CouchbaseStorage storage) => this.storage = storage ?? throw new ArgumentNullException(nameof(storage));
 
         public void Execute(CancellationToken cancellationToken)
         {

@@ -33,12 +33,13 @@ namespace Hangfire.Couchbase
 
             foreach (var tuple in tuples)
             {
-                long enqueueCount = EnqueuedCount(tuple.Queue);
+                (int? EnqueuedCount, int? FetchedCount) counters = tuple.Monitoring.GetEnqueuedAndFetchedCount(tuple.Queue);
                 JobList<EnqueuedJobDto> jobs = EnqueuedJobs(tuple.Queue, 0, 5);
+
                 queueJobs.Add(new QueueWithTopEnqueuedJobsDto
                 {
-                    Length = enqueueCount,
-                    Fetched = 0,
+                    Length = counters.EnqueuedCount ?? 0,
+                    Fetched = counters.FetchedCount ?? 0,
                     Name = tuple.Queue,
                     FirstJobs = jobs
                 });
@@ -177,20 +178,38 @@ namespace Hangfire.Couchbase
 
         public JobList<EnqueuedJobDto> EnqueuedJobs(string queue, int from, int perPage)
         {
-            return GetJobsOnQueue(queue, from, perPage, (state, job) => new EnqueuedJobDto
+            using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
             {
-                Job = job,
-                State = state
-            });
+                BucketContext context = new BucketContext(bucket);
+                IQueryable<Documents.Queue> query = context.Query<Documents.Queue>()
+                    .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue && q.FetchedAt.HasValue == false)
+                    .OrderBy(q => q.CreatedOn)
+                    .Skip(from).Take(perPage);
+
+                return GetJobsOnQueue(bucket, query, (state, job) => new EnqueuedJobDto
+                {
+                    Job = job,
+                    State = state
+                });
+            }
         }
 
         public JobList<FetchedJobDto> FetchedJobs(string queue, int from, int perPage)
         {
-            return GetJobsOnQueue(queue, from, perPage, (state, job) => new FetchedJobDto
+            using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
             {
-                Job = job,
-                State = state
-            });
+                BucketContext context = new BucketContext(bucket);
+                IQueryable<Documents.Queue> query = context.Query<Documents.Queue>()
+                    .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue && q.FetchedAt.HasValue)
+                    .OrderBy(q => q.CreatedOn)
+                    .Skip(from).Take(perPage);
+
+                return GetJobsOnQueue(bucket, query, (state, job) => new FetchedJobDto
+                {
+                    Job = job,
+                    State = state
+                });
+            }
         }
 
         public JobList<ProcessingJobDto> ProcessingJobs(int from, int count)
@@ -279,36 +298,25 @@ namespace Hangfire.Couchbase
             return new JobList<T>(jobs);
         }
 
-        private JobList<T> GetJobsOnQueue<T>(string queue, int from, int count, Func<string, Common.Job, T> selector)
+        private JobList<T> GetJobsOnQueue<T>(IBucket bucket, IQueryable<Documents.Queue> query, Func<string, Common.Job, T> selector)
         {
-            if (string.IsNullOrEmpty(queue)) throw new ArgumentNullException(nameof(queue));
-
             List<KeyValuePair<string, T>> jobs = new List<KeyValuePair<string, T>>();
+            List<Documents.Queue> queues = query.ToList();
 
-            using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
+            queues.ForEach(queueItem =>
             {
-                BucketContext context = new BucketContext(bucket);
-                List<Documents.Queue> queues = context.Query<Documents.Queue>()
-                    .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue)
-                    .OrderBy(q => q.CreatedOn)
-                    .Skip(from).Take(count)
-                    .ToList();
-
-                queues.ForEach(queueItem =>
+                IDocumentResult<Documents.Job> result = bucket.GetDocument<Documents.Job>(queueItem.JobId);
+                if (result.Success && result.Content != null)
                 {
-                    IDocumentResult<Documents.Job> result = bucket.GetDocument<Documents.Job>(queueItem.JobId);
-                    if (result.Success && result.Content != null)
-                    {
-                        Documents.Job job = result.Content;
+                    Documents.Job job = result.Content;
 
-                        InvocationData invocationData = job.InvocationData;
-                        invocationData.Arguments = job.Arguments;
+                    InvocationData invocationData = job.InvocationData;
+                    invocationData.Arguments = job.Arguments;
 
-                        T data = selector(job.StateName, invocationData.Deserialize());
-                        jobs.Add(new KeyValuePair<string, T>(job.Id, data));
-                    }
-                });
-            }
+                    T data = selector(job.StateName, invocationData.Deserialize());
+                    jobs.Add(new KeyValuePair<string, T>(job.Id, data));
+                }
+            });
 
             return new JobList<T>(jobs);
         }
@@ -323,10 +331,19 @@ namespace Hangfire.Couchbase
 
             IPersistentJobQueueProvider provider = storage.QueueProviders.GetProvider(queue);
             IPersistentJobQueueMonitoringApi monitoringApi = provider.GetJobQueueMonitoringApi();
-            return monitoringApi.GetEnqueuedCount(queue);
+            (int? EnqueuedCount, int? FetchedCount) counters = monitoringApi.GetEnqueuedAndFetchedCount(queue);
+            return counters.EnqueuedCount ?? 0;
         }
 
-        public long FetchedCount(string queue) => EnqueuedCount(queue);
+        public long FetchedCount(string queue)
+        {
+            if (string.IsNullOrEmpty(queue)) throw new ArgumentNullException(nameof(queue));
+
+            IPersistentJobQueueProvider provider = storage.QueueProviders.GetProvider(queue);
+            IPersistentJobQueueMonitoringApi monitoringApi = provider.GetJobQueueMonitoringApi();
+            (int? EnqueuedCount, int? FetchedCount) counters = monitoringApi.GetEnqueuedAndFetchedCount(queue);
+            return counters.FetchedCount ?? 0;
+        }
 
         public long ScheduledCount() => GetNumberOfJobsByStateName(States.ScheduledState.StateName);
 
@@ -359,14 +376,28 @@ namespace Hangfire.Couchbase
 
         private Dictionary<DateTime, long> GetHourlyTimelineStats(string type)
         {
-            List<DateTime> dates = Enumerable.Range(0, 24).Select(x => DateTime.UtcNow.AddHours(-x)).ToList();
+            DateTime endDate = DateTime.UtcNow;
+            List<DateTime> dates = new List<DateTime>();
+            for (int i = 0; i < 24; i++)
+            {
+                dates.Add(endDate);
+                endDate = endDate.AddHours(-1);
+            }
+
             Dictionary<string, DateTime> keys = dates.ToDictionary(x => $"stats:{type}:{x:yyyy-MM-dd-HH}", x => x);
             return GetTimelineStats(keys);
         }
 
         private Dictionary<DateTime, long> GetDatesTimelineStats(string type)
         {
-            List<DateTime> dates = Enumerable.Range(0, 7).Select(x => DateTime.UtcNow.AddDays(-x)).ToList();
+            DateTime endDate = DateTime.UtcNow.Date;
+            List<DateTime> dates = new List<DateTime>();
+            for (int i = 0; i < 7; i++)
+            {
+                dates.Add(endDate);
+                endDate = endDate.AddDays(-1);
+            }
+
             Dictionary<string, DateTime> keys = dates.ToDictionary(x => $"stats:{type}:{x:yyyy-MM-dd}", x => x);
             return GetTimelineStats(keys);
         }
