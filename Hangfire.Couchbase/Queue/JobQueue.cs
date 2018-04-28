@@ -6,6 +6,8 @@ using Couchbase;
 using Couchbase.Core;
 using Couchbase.Linq;
 using Hangfire.Storage;
+
+using Hangfire.Couchbase.Helper;
 using Hangfire.Couchbase.Documents;
 
 namespace Hangfire.Couchbase.Queue
@@ -15,6 +17,7 @@ namespace Hangfire.Couchbase.Queue
         private readonly CouchbaseStorage storage;
         private const string DISTRIBUTED_LOCK_KEY = "locks:job:dequeue";
         private readonly TimeSpan defaultLockTimeout = TimeSpan.FromSeconds(15);
+        private readonly TimeSpan invisibilityTimeout = TimeSpan.FromMinutes(30);
         private readonly object syncLock = new object();
 
         public JobQueue(CouchbaseStorage storage) => this.storage = storage;
@@ -27,6 +30,8 @@ namespace Hangfire.Couchbase.Queue
                 cancellationToken.ThrowIfCancellationRequested();
                 lock (syncLock)
                 {
+                    int invisibilityTimeoutEpoch = DateTime.UtcNow.Add(invisibilityTimeout.Negate()).ToEpoch();
+
                     using (new CouchbaseDistributedLock(DISTRIBUTED_LOCK_KEY, defaultLockTimeout, storage))
                     {
                         string queue = queues.ElementAt(index);
@@ -36,11 +41,15 @@ namespace Hangfire.Couchbase.Queue
                             Documents.Queue data = context.Query<Documents.Queue>()
                                 .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue)
                                 .OrderBy(q => q.CreatedOn)
-                                .FirstOrDefault();
+                                .AsEnumerable()
+                                .FirstOrDefault(q => q.FetchedAt.HasValue == false || q.FetchedAt < invisibilityTimeoutEpoch);
 
                             if (data != null)
                             {
-                                IOperationResult result = bucket.Remove(data.Id);
+                                // mark the document
+                                data.FetchedAt = DateTime.UtcNow.ToEpoch();
+
+                                IOperationResult result = bucket.Upsert(data.Id, data);
                                 if (result.Success) return new FetchedJob(storage, data);
                             }
                         }

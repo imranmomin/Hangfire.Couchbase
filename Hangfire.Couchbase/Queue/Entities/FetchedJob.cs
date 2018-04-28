@@ -32,12 +32,14 @@ namespace Hangfire.Couchbase.Queue
         {
             Documents.Queue data = new Documents.Queue
             {
+                Id = Id,
                 Name = Queue,
                 JobId = JobId,
-                CreatedOn = DateTime.UtcNow
+                CreatedOn = DateTime.UtcNow,
+                FetchedAt = null
             };
 
-            bucket.Insert(Id, data);
+            bucket.Upsert(Id, data);
         }
     }
 }
