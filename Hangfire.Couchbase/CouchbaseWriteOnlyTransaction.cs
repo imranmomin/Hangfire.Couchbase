@@ -250,8 +250,6 @@ namespace Hangfire.Couchbase
 
                 if (data != null)
                 {
-                    data.Key = key;
-                    data.Value = value;
                     data.Score = score;
                 }
                 else
@@ -260,7 +258,8 @@ namespace Hangfire.Couchbase
                     {
                         Key = key,
                         Value = value,
-                        Score = score
+                        Score = score,
+                        CreatedOn = DateTime.UtcNow
                     };
                 }
 
@@ -327,7 +326,8 @@ namespace Hangfire.Couchbase
                 List data = new List
                 {
                     Key = key,
-                    Value = value
+                    Value = value,
+                    CreatedOn = DateTime.UtcNow
                 };
 
                 bucket.Insert(data.Id, data);
