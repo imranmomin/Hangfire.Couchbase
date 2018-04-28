@@ -6,6 +6,7 @@ using Couchbase;
 using Couchbase.Core;
 using Couchbase.Linq;
 using Hangfire.Common;
+using Hangfire.States;
 using Hangfire.Storage;
 using Hangfire.Storage.Monitoring;
 
@@ -181,15 +182,22 @@ namespace Hangfire.Couchbase
             using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
             {
                 BucketContext context = new BucketContext(bucket);
-                IQueryable<Documents.Queue> query = context.Query<Documents.Queue>()
-                    .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue && q.FetchedAt.HasValue == false)
+                List<Documents.Queue> queues = context.Query<Documents.Queue>()
+                    .Where(q => q.DocumentType == DocumentTypes.Queue)
                     .OrderBy(q => q.CreatedOn)
-                    .Skip(from).Take(perPage);
+                    .Skip(from).Take(perPage)
+                    .AsEnumerable()
+                    .Where(q => q.FetchedAt.HasValue == false)
+                    .ToList();
 
-                return GetJobsOnQueue(bucket, query, (state, job) => new EnqueuedJobDto
+                return GetJobsOnQueue(bucket, queues, (state, job, fetchedAt) => new EnqueuedJobDto
                 {
                     Job = job,
-                    State = state
+                    State = state.Name,
+                    InEnqueuedState = EnqueuedState.StateName.Equals(state.Name, StringComparison.OrdinalIgnoreCase),
+                    EnqueuedAt = EnqueuedState.StateName.Equals(state.Name, StringComparison.OrdinalIgnoreCase)
+                        ? JobHelper.DeserializeNullableDateTime(state.Data["EnqueuedAt"])
+                        : null
                 });
             }
         }
@@ -199,24 +207,29 @@ namespace Hangfire.Couchbase
             using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
             {
                 BucketContext context = new BucketContext(bucket);
-                IQueryable<Documents.Queue> query = context.Query<Documents.Queue>()
-                    .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue && q.FetchedAt.HasValue)
+                List<Documents.Queue> queues = context.Query<Documents.Queue>()
+                    .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue)
                     .OrderBy(q => q.CreatedOn)
-                    .Skip(from).Take(perPage);
+                    .Skip(from).Take(perPage)
+                    .AsEnumerable()
+                    .Where(q => q.FetchedAt.HasValue)
+                    .ToList();
 
-                return GetJobsOnQueue(bucket, query, (state, job) => new FetchedJobDto
+                return GetJobsOnQueue(bucket, queues, (state, job, fetchedAt) => new FetchedJobDto
                 {
                     Job = job,
-                    State = state
+                    State = state.Name,
+                    FetchedAt = fetchedAt?.ToDateTime()
                 });
             }
         }
 
         public JobList<ProcessingJobDto> ProcessingJobs(int from, int count)
         {
-            return GetJobsOnState(States.ProcessingState.StateName, from, count, (state, job) => new ProcessingJobDto
+            return GetJobsOnState(ProcessingState.StateName, from, count, (state, job) => new ProcessingJobDto
             {
                 Job = job,
+                InProcessingState = ProcessingState.StateName.Equals(state.Name, StringComparison.OrdinalIgnoreCase),
                 ServerId = state.Data.ContainsKey("ServerId") ? state.Data["ServerId"] : state.Data["ServerName"],
                 StartedAt = JobHelper.DeserializeDateTime(state.Data["StartedAt"])
             });
@@ -224,9 +237,10 @@ namespace Hangfire.Couchbase
 
         public JobList<ScheduledJobDto> ScheduledJobs(int from, int count)
         {
-            return GetJobsOnState(States.ScheduledState.StateName, from, count, (state, job) => new ScheduledJobDto
+            return GetJobsOnState(ScheduledState.StateName, from, count, (state, job) => new ScheduledJobDto
             {
                 Job = job,
+                InScheduledState = ScheduledState.StateName.Equals(state.Name, StringComparison.OrdinalIgnoreCase),
                 EnqueueAt = JobHelper.DeserializeDateTime(state.Data["EnqueueAt"]),
                 ScheduledAt = JobHelper.DeserializeDateTime(state.Data["ScheduledAt"])
             });
@@ -234,9 +248,10 @@ namespace Hangfire.Couchbase
 
         public JobList<SucceededJobDto> SucceededJobs(int from, int count)
         {
-            return GetJobsOnState(States.SucceededState.StateName, from, count, (state, job) => new SucceededJobDto
+            return GetJobsOnState(SucceededState.StateName, from, count, (state, job) => new SucceededJobDto
             {
                 Job = job,
+                InSucceededState = SucceededState.StateName.Equals(state.Name, StringComparison.OrdinalIgnoreCase),
                 Result = state.Data.ContainsKey("Result") ? state.Data["Result"] : null,
                 TotalDuration = state.Data.ContainsKey("PerformanceDuration") && state.Data.ContainsKey("Latency")
                                 ? (long?)long.Parse(state.Data["PerformanceDuration"]) + long.Parse(state.Data["Latency"])
@@ -247,9 +262,10 @@ namespace Hangfire.Couchbase
 
         public JobList<FailedJobDto> FailedJobs(int from, int count)
         {
-            return GetJobsOnState(States.FailedState.StateName, from, count, (state, job) => new FailedJobDto
+            return GetJobsOnState(FailedState.StateName, from, count, (state, job) => new FailedJobDto
             {
                 Job = job,
+                InFailedState = FailedState.StateName.Equals(state.Name, StringComparison.OrdinalIgnoreCase),
                 Reason = state.Reason,
                 FailedAt = JobHelper.DeserializeNullableDateTime(state.Data["FailedAt"]),
                 ExceptionDetails = state.Data["ExceptionDetails"],
@@ -260,9 +276,10 @@ namespace Hangfire.Couchbase
 
         public JobList<DeletedJobDto> DeletedJobs(int from, int count)
         {
-            return GetJobsOnState(States.DeletedState.StateName, from, count, (state, job) => new DeletedJobDto
+            return GetJobsOnState(DeletedState.StateName, from, count, (state, job) => new DeletedJobDto
             {
                 Job = job,
+                InDeletedState = DeletedState.StateName.Equals(state.Name, StringComparison.OrdinalIgnoreCase),
                 DeletedAt = JobHelper.DeserializeNullableDateTime(state.Data["DeletedAt"])
             });
         }
@@ -298,22 +315,21 @@ namespace Hangfire.Couchbase
             return new JobList<T>(jobs);
         }
 
-        private JobList<T> GetJobsOnQueue<T>(IBucket bucket, IQueryable<Documents.Queue> query, Func<string, Common.Job, T> selector)
+        private JobList<T> GetJobsOnQueue<T>(IBucket bucket, List<Documents.Queue> queues, Func<State, Common.Job, int?, T> selector)
         {
             List<KeyValuePair<string, T>> jobs = new List<KeyValuePair<string, T>>();
-            List<Documents.Queue> queues = query.ToList();
-
             queues.ForEach(queueItem =>
             {
                 IDocumentResult<Documents.Job> result = bucket.GetDocument<Documents.Job>(queueItem.JobId);
                 if (result.Success && result.Content != null)
                 {
                     Documents.Job job = result.Content;
-
                     InvocationData invocationData = job.InvocationData;
                     invocationData.Arguments = job.Arguments;
 
-                    T data = selector(job.StateName, invocationData.Deserialize());
+                    IDocumentResult<State> stateResult = bucket.GetDocument<State>(job.StateId);
+
+                    T data = selector(stateResult.Content, invocationData.Deserialize(), queueItem.FetchedAt);
                     jobs.Add(new KeyValuePair<string, T>(job.Id, data));
                 }
             });
@@ -345,15 +361,15 @@ namespace Hangfire.Couchbase
             return counters.FetchedCount ?? 0;
         }
 
-        public long ScheduledCount() => GetNumberOfJobsByStateName(States.ScheduledState.StateName);
+        public long ScheduledCount() => GetNumberOfJobsByStateName(ScheduledState.StateName);
 
-        public long FailedCount() => GetNumberOfJobsByStateName(States.FailedState.StateName);
+        public long FailedCount() => GetNumberOfJobsByStateName(FailedState.StateName);
 
-        public long ProcessingCount() => GetNumberOfJobsByStateName(States.ProcessingState.StateName);
+        public long ProcessingCount() => GetNumberOfJobsByStateName(ProcessingState.StateName);
 
-        public long SucceededListCount() => GetNumberOfJobsByStateName(States.SucceededState.StateName);
+        public long SucceededListCount() => GetNumberOfJobsByStateName(SucceededState.StateName);
 
-        public long DeletedListCount() => GetNumberOfJobsByStateName(States.DeletedState.StateName);
+        public long DeletedListCount() => GetNumberOfJobsByStateName(DeletedState.StateName);
 
         private long GetNumberOfJobsByStateName(string state)
         {
