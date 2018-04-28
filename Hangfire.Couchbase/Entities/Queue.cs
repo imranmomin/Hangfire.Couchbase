@@ -18,6 +18,9 @@ namespace Hangfire.Couchbase.Documents
         [JsonConverter(typeof(UnixDateTimeConverter))]
         public DateTime CreatedOn { get; set; }
 
+        [JsonProperty("fetched_at")]
+        public int? FetchedAt { get; set; }
+
         public override DocumentTypes DocumentType => DocumentTypes.Queue;
     }
 }
