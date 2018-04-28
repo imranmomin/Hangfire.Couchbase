@@ -40,9 +40,9 @@ namespace Hangfire.Couchbase.Queue
                             BucketContext context = new BucketContext(bucket);
                             Documents.Queue data = context.Query<Documents.Queue>()
                                 .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue)
-                                .Where(q => q.FetchedAt.HasValue == false || (q.FetchedAt.HasValue && q.FetchedAt < invisibilityTimeoutEpoch))
                                 .OrderBy(q => q.CreatedOn)
-                                .FirstOrDefault();
+                                .AsEnumerable()
+                                .FirstOrDefault(q => q.FetchedAt.HasValue == false || q.FetchedAt < invisibilityTimeoutEpoch);
 
                             if (data != null)
                             {
