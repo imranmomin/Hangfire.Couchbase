@@ -58,9 +58,11 @@ namespace Hangfire.Couchbase.Queue
             {
                 BucketContext context = new BucketContext(bucket);
                 return context.Query<Documents.Queue>()
-                    .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue && q.FetchedAt.HasValue == false)
+                    .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue)
                     .OrderBy(q => q.CreatedOn)
                     .Skip(from + 1).Take(perPage + 1)
+                    .AsEnumerable()
+                    .Where(q => q.FetchedAt.HasValue == false)
                     .Select(c => c.JobId)
                     .AsEnumerable();
             }
@@ -72,9 +74,11 @@ namespace Hangfire.Couchbase.Queue
             {
                 BucketContext context = new BucketContext(bucket);
                 return context.Query<Documents.Queue>()
-                    .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue && q.FetchedAt.HasValue)
+                    .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue)
                     .OrderBy(q => q.CreatedOn)
                     .Skip(from + 1).Take(perPage + 1)
+                    .AsEnumerable()
+                    .Where(q => q.FetchedAt.HasValue)
                     .Select(c => c.JobId)
                     .AsEnumerable();
             }
@@ -85,11 +89,11 @@ namespace Hangfire.Couchbase.Queue
             using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
             {
                 BucketContext context = new BucketContext(bucket);
-                (int Fetched, int Enqueued) result = context.Query<Documents.Queue>()
+                (int EnqueuedCount, int FetchedCount) result = context.Query<Documents.Queue>()
                     .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue)
                     .AsEnumerable()
                     .GroupBy(q => q.Name)
-                    .Select(v => (Fetched: v.Sum(q => q.FetchedAt.HasValue ? 1 : 0), Enqueued: v.Sum(q => q.FetchedAt.HasValue ? 0 : 1)))
+                    .Select(v => (EnqueuedCount: v.Sum(q => q.FetchedAt.HasValue ? 0 : 1), FetchedCount: v.Sum(q => q.FetchedAt.HasValue ? 1 : 0)))
                     .FirstOrDefault();
 
                 return result;
