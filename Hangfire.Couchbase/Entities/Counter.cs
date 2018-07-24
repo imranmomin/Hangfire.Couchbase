@@ -15,6 +15,8 @@ namespace Hangfire.Couchbase.Documents
         public CounterTypes Type { get; set; }
 
         public override DocumentTypes DocumentType => DocumentTypes.Counter;
+
+        public Counter() : base("hangfire::counter") { }
     }
 
     internal enum CounterTypes

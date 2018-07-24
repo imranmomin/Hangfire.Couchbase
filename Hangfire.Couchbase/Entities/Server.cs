@@ -27,5 +27,7 @@ namespace Hangfire.Couchbase.Documents
         public DateTime LastHeartbeat { get; set; }
 
         public override DocumentTypes DocumentType => DocumentTypes.Server;
+
+        public Server() : base("hangifre::server") { }
     }
 }

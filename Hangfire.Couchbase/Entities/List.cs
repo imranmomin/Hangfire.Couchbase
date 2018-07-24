@@ -19,5 +19,7 @@ namespace Hangfire.Couchbase.Documents
         public DateTime CreatedOn { get; set; }
 
         public override DocumentTypes DocumentType => DocumentTypes.List;
+
+        public List() : base("hangifre:list") { }
     }
 }

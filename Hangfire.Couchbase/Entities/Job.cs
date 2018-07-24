@@ -31,5 +31,7 @@ namespace Hangfire.Couchbase.Documents
         public DateTime CreatedOn { get; set; }
 
         public override DocumentTypes DocumentType => DocumentTypes.Job;
+
+        public Job() : base("hangfire::job") { }
     }
 }
