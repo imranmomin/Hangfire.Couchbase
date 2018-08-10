@@ -22,5 +22,7 @@ namespace Hangfire.Couchbase.Documents
         public int? FetchedAt { get; set; }
 
         public override DocumentTypes DocumentType => DocumentTypes.Queue;
+
+        public Queue() : base("hangifre::queue") { }
     }
 }

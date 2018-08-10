@@ -9,5 +9,7 @@ namespace Hangfire.Couchbase.Documents
         public string Name { get; set; }
 
         public override DocumentTypes DocumentType => DocumentTypes.Lock;
+
+        public Lock() : base("hangifre::lock") { }
     }
 }

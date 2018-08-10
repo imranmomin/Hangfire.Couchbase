@@ -8,13 +8,18 @@ namespace Hangfire.Couchbase.Documents
     internal abstract class DocumentBase
     {
         [JsonProperty("id")]
-        public string Id { get; set; } = Guid.NewGuid().ToString();
+        public string Id { get; set; }
 
         [JsonProperty("expire_on")]
         public int? ExpireOn { get; set; }
 
         [JsonProperty("type")]
         public abstract DocumentTypes DocumentType { get; }
+
+        protected DocumentBase(string prefix)
+        {
+            Id = $"{prefix}::{Guid.NewGuid().ToString()}";
+        }
     }
 
     internal enum DocumentTypes

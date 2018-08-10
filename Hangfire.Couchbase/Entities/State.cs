@@ -27,5 +27,7 @@ namespace Hangfire.Couchbase.Documents
         public Dictionary<string, string> Data { get; set; }
 
         public override DocumentTypes DocumentType => DocumentTypes.State;
+
+        public State() : base("hangifre::state") { }
     }
 }

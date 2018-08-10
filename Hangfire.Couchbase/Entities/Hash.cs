@@ -15,5 +15,7 @@ namespace Hangfire.Couchbase.Documents
         public string Value { get; set; }
 
         public override DocumentTypes DocumentType => DocumentTypes.Hash;
+
+        public Hash() : base("hangfire::hash") { }
     }
 }
