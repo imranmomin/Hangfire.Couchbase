@@ -14,7 +14,7 @@ using Hangfire.Couchbase.Documents;
 
 namespace Hangfire.Couchbase
 {
-    internal class CouchbaseWriteOnlyTransaction : IWriteOnlyTransaction
+    internal class CouchbaseWriteOnlyTransaction : JobStorageTransaction
     {
         private readonly CouchbaseConnection connection;
         private readonly IBucket bucket;
@@ -28,12 +28,12 @@ namespace Hangfire.Couchbase
         }
 
         private void QueueCommand(Action command) => commands.Add(command);
-        public void Commit() => commands.ForEach(command => command());
-        public void Dispose() => bucket.Dispose();
+        public override void Commit() => commands.ForEach(command => command());
+        public override void Dispose() => bucket.Dispose();
 
         #region Queue
 
-        public void AddToQueue(string queue, string jobId)
+        public override void AddToQueue(string queue, string jobId)
         {
             if (string.IsNullOrEmpty(queue)) throw new ArgumentNullException(nameof(queue));
             if (string.IsNullOrEmpty(jobId)) throw new ArgumentNullException(nameof(jobId));
@@ -47,7 +47,7 @@ namespace Hangfire.Couchbase
 
         #region Counter
 
-        public void DecrementCounter(string key)
+        public override void DecrementCounter(string key)
         {
             if (string.IsNullOrEmpty(key)) throw new ArgumentNullException(nameof(key));
 
@@ -64,7 +64,7 @@ namespace Hangfire.Couchbase
             });
         }
 
-        public void DecrementCounter(string key, TimeSpan expireIn)
+        public override void DecrementCounter(string key, TimeSpan expireIn)
         {
             if (string.IsNullOrEmpty(key)) throw new ArgumentNullException(nameof(key));
             if (expireIn.Duration() != expireIn) throw new ArgumentException(@"The `expireIn` value must be positive.", nameof(expireIn));
@@ -83,7 +83,7 @@ namespace Hangfire.Couchbase
             });
         }
 
-        public void IncrementCounter(string key)
+        public override void IncrementCounter(string key)
         {
             if (string.IsNullOrEmpty(key)) throw new ArgumentNullException(nameof(key));
 
@@ -100,7 +100,7 @@ namespace Hangfire.Couchbase
             });
         }
 
-        public void IncrementCounter(string key, TimeSpan expireIn)
+        public override void IncrementCounter(string key, TimeSpan expireIn)
         {
             if (string.IsNullOrEmpty(key)) throw new ArgumentNullException(nameof(key));
             if (expireIn.Duration() != expireIn) throw new ArgumentException(@"The `expireIn` value must be positive.", nameof(expireIn));
@@ -123,7 +123,7 @@ namespace Hangfire.Couchbase
 
         #region Job
 
-        public void ExpireJob(string jobId, TimeSpan expireIn)
+        public override void ExpireJob(string jobId, TimeSpan expireIn)
         {
             if (string.IsNullOrEmpty(jobId)) throw new ArgumentNullException(nameof(jobId));
             if (expireIn.Duration() != expireIn) throw new ArgumentException(@"The `expireIn` value must be positive.", nameof(expireIn));
@@ -140,7 +140,7 @@ namespace Hangfire.Couchbase
             });
         }
 
-        public void PersistJob(string jobId)
+        public override void PersistJob(string jobId)
         {
             if (string.IsNullOrEmpty(jobId)) throw new ArgumentNullException(nameof(jobId));
 
@@ -160,7 +160,7 @@ namespace Hangfire.Couchbase
 
         #region State
 
-        public void SetJobState(string jobId, IState state)
+        public override void SetJobState(string jobId, IState state)
         {
             if (string.IsNullOrEmpty(jobId)) throw new ArgumentNullException(nameof(jobId));
             if (state == null) throw new ArgumentNullException(nameof(state));
@@ -192,7 +192,7 @@ namespace Hangfire.Couchbase
             });
         }
 
-        public void AddJobState(string jobId, IState state)
+        public override void AddJobState(string jobId, IState state)
         {
             if (string.IsNullOrEmpty(jobId)) throw new ArgumentNullException(nameof(jobId));
             if (state == null) throw new ArgumentNullException(nameof(state));
@@ -216,7 +216,7 @@ namespace Hangfire.Couchbase
 
         #region Set
 
-        public void RemoveFromSet(string key, string value)
+        public override void RemoveFromSet(string key, string value)
         {
             if (string.IsNullOrEmpty(key)) throw new ArgumentNullException(nameof(key));
             if (string.IsNullOrEmpty(value)) throw new ArgumentNullException(nameof(value));
@@ -236,9 +236,9 @@ namespace Hangfire.Couchbase
             });
         }
 
-        public void AddToSet(string key, string value) => AddToSet(key, value, 0.0);
+        public override void AddToSet(string key, string value) => AddToSet(key, value, 0.0);
 
-        public void AddToSet(string key, string value, double score)
+        public override void AddToSet(string key, string value, double score)
         {
             if (string.IsNullOrEmpty(key)) throw new ArgumentNullException(nameof(key));
             if (string.IsNullOrEmpty(value)) throw new ArgumentNullException(nameof(value));
@@ -267,26 +267,105 @@ namespace Hangfire.Couchbase
             });
         }
 
+        public override void PersistSet(string key)
+        {
+            if (key == null) throw new ArgumentNullException(nameof(key));
+
+            QueueCommand(() =>
+            {
+                BucketContext context = new BucketContext(bucket);
+                Set[] sets = context.Query<Set>()
+                    .Where(s => s.DocumentType == DocumentTypes.Set && s.Key == key)
+                    .ToArray();
+
+                foreach (Set set in sets)
+                {
+                    set.ExpireOn = null;
+                    bucket.Upsert(set.Id, set);
+                }
+            });
+        }
+
+        public override void ExpireSet(string key, TimeSpan expireIn)
+        {
+            if (key == null) throw new ArgumentNullException(nameof(key));
+
+            QueueCommand(() =>
+            {
+                int epoch = DateTime.UtcNow.Add(expireIn).ToEpoch();
+
+                BucketContext context = new BucketContext(bucket);
+                Set[] sets = context.Query<Set>()
+                    .Where(s => s.DocumentType == DocumentTypes.Set && s.Key == key)
+                    .ToArray();
+
+                foreach (Set set in sets)
+                {
+                    set.ExpireOn = epoch;
+                    bucket.Upsert(set.Id, set);
+                }
+            });
+        }
+
+        public override void AddRangeToSet(string key, IList<string> items)
+        {
+            if (key == null) throw new ArgumentNullException(nameof(key));
+            if (items == null) throw new ArgumentNullException(nameof(items));
+
+            QueueCommand(() =>
+            {
+                foreach (string value in items)
+                {
+                    Set data = new Set
+                    {
+                        Key = key,
+                        Value = value,
+                        Score = 0.00,
+                        CreatedOn = DateTime.UtcNow
+                    };
+
+                    bucket.Insert(data.Id, data);
+                }
+            });
+        }
+
+        public override void RemoveSet(string key)
+        {
+            if (key == null) throw new ArgumentNullException(nameof(key));
+
+            QueueCommand(() =>
+            {
+                BucketContext context = new BucketContext(bucket);
+                string[] ids = context.Query<Set>()
+                    .Where(h => h.DocumentType == DocumentTypes.Set && h.Key == key)
+                    .Select(s => s.Id)
+                    .ToArray();
+
+                Array.ForEach(ids, id => bucket.Remove(id));
+            });
+        }
+
         #endregion
 
         #region  Hash
 
-        public void RemoveHash(string key)
+        public override void RemoveHash(string key)
         {
             if (string.IsNullOrEmpty(key)) throw new ArgumentNullException(nameof(key));
 
             QueueCommand(() =>
             {
                 BucketContext context = new BucketContext(bucket);
-                Hash[] hashes = context.Query<Hash>()
+                string[] ids = context.Query<Hash>()
                     .Where(h => h.DocumentType == DocumentTypes.Hash && h.Key == key)
+                    .Select(h => h.Id)
                     .ToArray();
 
-                Array.ForEach(hashes, hash => bucket.Remove(hash.Id));
+                Array.ForEach(ids, id => bucket.Remove(id));
             });
         }
 
-        public void SetRangeInHash(string key, IEnumerable<KeyValuePair<string, string>> keyValuePairs)
+        public override void SetRangeInHash(string key, IEnumerable<KeyValuePair<string, string>> keyValuePairs)
         {
             if (string.IsNullOrEmpty(key)) throw new ArgumentNullException(nameof(key));
             if (keyValuePairs == null) throw new ArgumentNullException(nameof(keyValuePairs));
@@ -299,7 +378,7 @@ namespace Hangfire.Couchbase
                     Field = k.Key,
                     Value = k.Value.TryParseToEpoch()
                 }).ToArray();
-                
+
                 BucketContext context = new BucketContext(bucket);
                 IEnumerable<Hash> hashes = context.Query<Hash>().Where(h => h.DocumentType == DocumentTypes.Hash && h.Key == key);
 
@@ -312,11 +391,51 @@ namespace Hangfire.Couchbase
             });
         }
 
+        public override void ExpireHash(string key, TimeSpan expireIn)
+        {
+            if (string.IsNullOrEmpty(key)) throw new ArgumentNullException(nameof(key));
+
+            QueueCommand(() =>
+            {
+                int epoch = DateTime.UtcNow.Add(expireIn).ToEpoch();
+                
+                BucketContext context = new BucketContext(bucket);
+                Hash[] hashes = context.Query<Hash>()
+                    .Where(s => s.DocumentType == DocumentTypes.Hash && s.Key == key)
+                    .ToArray();
+
+                foreach (Hash hash in hashes)
+                {
+                    hash.ExpireOn = epoch;
+                    bucket.Upsert(hash.Id, hash);
+                }
+            });
+        }
+
+        public override void PersistHash(string key)
+        {
+            if (string.IsNullOrEmpty(key)) throw new ArgumentNullException(nameof(key));
+
+            QueueCommand(() =>
+            {
+                BucketContext context = new BucketContext(bucket);
+                Hash[] hashes = context.Query<Hash>()
+                    .Where(h => h.DocumentType == DocumentTypes.Hash && h.Key == key)
+                    .ToArray();
+
+                foreach (Hash hash in hashes)
+                {
+                    hash.ExpireOn = null;
+                    bucket.Upsert(hash.Id, hash);
+                }
+            });
+        }
+
         #endregion
 
         #region List
 
-        public void InsertToList(string key, string value)
+        public override void InsertToList(string key, string value)
         {
             if (string.IsNullOrEmpty(key)) throw new ArgumentNullException(nameof(key));
             if (string.IsNullOrEmpty(value)) throw new ArgumentNullException(nameof(value));
@@ -334,7 +453,7 @@ namespace Hangfire.Couchbase
             });
         }
 
-        public void RemoveFromList(string key, string value)
+        public override void RemoveFromList(string key, string value)
         {
             if (string.IsNullOrEmpty(key)) throw new ArgumentNullException(nameof(key));
             if (string.IsNullOrEmpty(value)) throw new ArgumentNullException(nameof(value));
@@ -354,7 +473,7 @@ namespace Hangfire.Couchbase
             });
         }
 
-        public void TrimList(string key, int keepStartingFrom, int keepEndingAt)
+        public override void TrimList(string key, int keepStartingFrom, int keepEndingAt)
         {
             if (string.IsNullOrEmpty(key)) throw new ArgumentNullException(nameof(key));
 
@@ -372,6 +491,46 @@ namespace Hangfire.Couchbase
                         List list = lists.ElementAt(index);
                         bucket.Remove(list.Id);
                     }
+                }
+            });
+        }
+
+        public override void ExpireList(string key, TimeSpan expireIn)
+        {
+            if (key == null) throw new ArgumentNullException(nameof(key));
+
+            QueueCommand(() =>
+            {
+                int epoch = DateTime.UtcNow.Add(expireIn).ToEpoch();
+                
+                BucketContext context = new BucketContext(bucket);
+                List[] lists = context.Query<List>()
+                    .Where(l => l.DocumentType == DocumentTypes.List && l.Key == key)
+                    .ToArray();
+
+                foreach (List list in lists)
+                {
+                    list.ExpireOn = epoch;
+                    bucket.Upsert(list.Id, list);
+                }
+            });
+        }
+
+        public override void PersistList(string key)
+        {
+            if (key == null) throw new ArgumentNullException(nameof(key));
+
+            QueueCommand(() =>
+            {
+                BucketContext context = new BucketContext(bucket);
+                List[] lists = context.Query<List>()
+                    .Where(l => l.DocumentType == DocumentTypes.List && l.Key == key)
+                    .ToArray();
+
+                foreach (List list in lists)
+                {
+                    list.ExpireOn = null;
+                    bucket.Upsert(list.Id, list);
                 }
             });
         }
