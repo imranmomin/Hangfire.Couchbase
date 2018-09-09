@@ -49,14 +49,14 @@ namespace Hangfire.Couchbase
                         if (counters.TryGetValue(key, out var data))
                         {
                             Counter aggregated = context.Query<Counter>()
-                                .FirstOrDefault(c => c.DocumentType == DocumentTypes.Counter && c.Type == CounterTypes.Aggregrate && c.Key == key);
+                                .FirstOrDefault(c => c.DocumentType == DocumentTypes.Counter && c.Type == CounterTypes.Aggregate && c.Key == key);
 
                             if (aggregated == null)
                             {
                                 aggregated = new Counter
                                 {
                                     Key = key,
-                                    Type = CounterTypes.Aggregrate,
+                                    Type = CounterTypes.Aggregate,
                                     Value = data.Value,
                                     ExpireOn = data.ExpireOn
                                 };
