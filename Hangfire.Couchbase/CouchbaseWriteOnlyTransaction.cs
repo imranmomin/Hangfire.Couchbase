@@ -224,14 +224,15 @@ namespace Hangfire.Couchbase
             QueueCommand(() =>
             {
                 BucketContext context = new BucketContext(bucket);
-                string id = context.Query<Set>()
-                    .Where(s => s.DocumentType == DocumentTypes.Set && s.Key == key && s.Value == value)
-                    .Select(s => s.Id)
-                    .FirstOrDefault();
+                Set set = context.Query<Set>()
+                    .Where(s => s.DocumentType == DocumentTypes.Set && s.Key == key)
+                    .AsEnumerable()
+                    .FirstOrDefault(s => s.Value == value);
 
-                if (!string.IsNullOrEmpty(id))
+
+                if (set != null)
                 {
-                    bucket.Remove(id);
+                    bucket.Remove(set.Id);
                 }
             });
         }
@@ -246,7 +247,10 @@ namespace Hangfire.Couchbase
             QueueCommand(() =>
             {
                 BucketContext context = new BucketContext(bucket);
-                Set data = context.Query<Set>().FirstOrDefault(s => s.DocumentType == DocumentTypes.Set && s.Key == key && s.Value == value);
+                Set data = context.Query<Set>()
+                    .Where(s => s.DocumentType == DocumentTypes.Set && s.Key == key)
+                    .AsEnumerable()
+                    .FirstOrDefault(s => s.Value == value);
 
                 if (data != null)
                 {
@@ -398,7 +402,7 @@ namespace Hangfire.Couchbase
             QueueCommand(() =>
             {
                 int epoch = DateTime.UtcNow.Add(expireIn).ToEpoch();
-                
+
                 BucketContext context = new BucketContext(bucket);
                 Hash[] hashes = context.Query<Hash>()
                     .Where(s => s.DocumentType == DocumentTypes.Hash && s.Key == key)
@@ -461,14 +465,14 @@ namespace Hangfire.Couchbase
             QueueCommand(() =>
             {
                 BucketContext context = new BucketContext(bucket);
-                string id = context.Query<List>()
-                    .Where(s => s.DocumentType == DocumentTypes.List && s.Key == key && s.Value == value)
-                    .Select(s => s.Id)
-                    .FirstOrDefault();
+                List list = context.Query<List>()
+                    .Where(s => s.DocumentType == DocumentTypes.List && s.Key == key)
+                    .AsEnumerable()
+                    .FirstOrDefault(s => s.Value == value);
 
-                if (!string.IsNullOrEmpty(id))
+                if (list != null)
                 {
-                    bucket.Remove(id);
+                    bucket.Remove(list.Id);
                 }
             });
         }
@@ -502,7 +506,7 @@ namespace Hangfire.Couchbase
             QueueCommand(() =>
             {
                 int epoch = DateTime.UtcNow.Add(expireIn).ToEpoch();
-                
+
                 BucketContext context = new BucketContext(bucket);
                 List[] lists = context.Query<List>()
                     .Where(l => l.DocumentType == DocumentTypes.List && l.Key == key)
@@ -522,6 +526,8 @@ namespace Hangfire.Couchbase
 
             QueueCommand(() =>
             {
+                // IQueryResult<Set> result = bucket.Query<Set>($"UPDATE {bucket.Name} x UNSET x.expire_on WHERE x.type = {(int)DocumentTypes.List} AND s.key = '{key}' RETURNING x");
+
                 BucketContext context = new BucketContext(bucket);
                 List[] lists = context.Query<List>()
                     .Where(l => l.DocumentType == DocumentTypes.List && l.Key == key)
