@@ -115,7 +115,7 @@ namespace Hangfire.Couchbase
         public override StateData GetStateData(string jobId)
         {
             if (jobId == null) throw new ArgumentNullException(nameof(jobId));
-           
+
             BucketContext context = new BucketContext(bucket);
             IQueryable<State> states = context.Query<State>().Where(s => s.DocumentType == DocumentTypes.State && s.JobId == jobId);
 
@@ -177,9 +177,7 @@ namespace Hangfire.Couchbase
             BucketContext context = new BucketContext(bucket);
             int? expireOn = context.Query<Set>()
                 .Where(s => s.DocumentType == DocumentTypes.Set && s.Key == key)
-                .OrderByDescending(s => s.ExpireOn)
-                .Select(s => s.ExpireOn)
-                .FirstOrDefault();
+                .Min(s => s.ExpireOn);
 
             return expireOn.HasValue ? expireOn.Value.ToDateTime() - DateTime.UtcNow : TimeSpan.FromSeconds(-1);
         }
@@ -191,9 +189,12 @@ namespace Hangfire.Couchbase
             BucketContext context = new BucketContext(bucket);
             return context.Query<Set>()
                 .Where(s => s.DocumentType == DocumentTypes.Set && s.Key == key)
-                .OrderBy(s => s.CreatedOn)
-                .Select(c => c.Value)
-                .Skip(startingFrom).Take(endingAt)
+                .OrderBy(s => s.Score)
+                .ThenBy(s => s.CreatedOn)
+                .AsEnumerable()
+                .Select((s, i) => new { s.Value, Index = i })
+                .Where(s => s.Index >= startingFrom && s.Index <= endingAt)
+                .Select(s => s.Value)
                 .ToList();
         }
 
@@ -237,10 +238,9 @@ namespace Hangfire.Couchbase
 
             BucketContext context = new BucketContext(bucket);
             return context.Query<Set>()
-                .Where(s => s.DocumentType == DocumentTypes.Set && s.Key == key)
+                .Where(s => s.DocumentType == DocumentTypes.Set && s.Key == key && s.Score >= (int)fromScore && s.Score <= (int)toScore)
                 .OrderBy(s => s.Score)
                 .Select(s => s.Value)
-                .Skip((int)fromScore).Take((int)toScore)
                 .FirstOrDefault();
         }
 
@@ -392,9 +392,7 @@ namespace Hangfire.Couchbase
             BucketContext context = new BucketContext(bucket);
             int? expireOn = context.Query<Hash>()
                 .Where(h => h.DocumentType == DocumentTypes.Hash && h.Key == key)
-                .OrderByDescending(h => h.ExpireOn)
-                .Select(h => h.ExpireOn)
-                .FirstOrDefault();
+                .Min(h => h.ExpireOn);
 
             return expireOn.HasValue ? expireOn.Value.ToDateTime() - DateTime.UtcNow : TimeSpan.FromSeconds(-1);
         }
@@ -423,7 +421,9 @@ namespace Hangfire.Couchbase
             return context.Query<List>()
                 .Where(l => l.DocumentType == DocumentTypes.List && l.Key == key)
                 .OrderByDescending(l => l.CreatedOn)
-                .Skip(startingFrom).Take(endingAt)
+                .AsEnumerable()
+                .Select((l, i) => new { l.Value, Index = i })
+                .Where(l => l.Index >= startingFrom && l.Index <= endingAt)
                 .Select(l => l.Value)
                 .ToList();
         }
@@ -435,9 +435,7 @@ namespace Hangfire.Couchbase
             BucketContext context = new BucketContext(bucket);
             int? expireOn = context.Query<List>()
                 .Where(l => l.DocumentType == DocumentTypes.List && l.Key == key)
-                .OrderByDescending(l => l.ExpireOn)
-                .Select(l => l.ExpireOn)
-                .FirstOrDefault();
+                .Min(l => l.ExpireOn);
 
             return expireOn.HasValue ? expireOn.Value.ToDateTime() - DateTime.UtcNow : TimeSpan.FromSeconds(-1);
         }
