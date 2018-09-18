@@ -115,24 +115,21 @@ namespace Hangfire.Couchbase
         public override StateData GetStateData(string jobId)
         {
             if (jobId == null) throw new ArgumentNullException(nameof(jobId));
-
+           
             BucketContext context = new BucketContext(bucket);
-            State state = context.Query<State>()
-                .Where(s => s.DocumentType == DocumentTypes.State && s.JobId == jobId)
-                .OrderByDescending(s => s.CreatedOn)
-                .FirstOrDefault();
+            IQueryable<State> states = context.Query<State>().Where(s => s.DocumentType == DocumentTypes.State && s.JobId == jobId);
 
-            if (state != null)
-            {
-                return new StateData
+            StateData stateData = context.Query<Documents.Job>()
+                .Where(j => j.Id == jobId)
+                .Join(states, job => job.StateId, s => N1QlFunctions.Key(s), (job, s) => new StateData
                 {
-                    Name = state.Name,
-                    Reason = state.Reason,
-                    Data = state.Data
-                };
-            }
+                    Name = s.Name,
+                    Reason = s.Reason,
+                    Data = s.Data
+                })
+                .SingleOrDefault();
 
-            return null;
+            return stateData;
         }
 
         #endregion
