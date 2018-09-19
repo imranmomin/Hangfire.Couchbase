@@ -427,7 +427,7 @@ namespace Hangfire.Couchbase
             {
                 BucketContext context = new BucketContext(bucket);
                 data = context.Query<Counter>()
-                    .Where(c => c.Type == CounterTypes.Aggregrate && c.DocumentType == DocumentTypes.Counter)
+                    .Where(c => c.Type == CounterTypes.Aggregate && c.DocumentType == DocumentTypes.Counter)
                     .AsEnumerable()
                     .Where(c => keys.ContainsKey(c.Key))
                     .ToDictionary(k => k.Key, k => k.Value);

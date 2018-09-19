@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Threading;
+using System.Collections.Generic;
 
 using Couchbase.Core;
 using Couchbase.Linq;
@@ -36,14 +37,13 @@ namespace Hangfire.Couchbase
 
                     using (new CouchbaseDistributedLock(DISTRIBUTED_LOCK_KEY, defaultLockTimeout, storage))
                     {
-                        string[] ids = context.Query<DocumentBase>()
+                        IList<string> ids = context.Query<DocumentBase>()
                             .Where(d => d.DocumentType == type && d.ExpireOn.HasValue && d.ExpireOn < DateTime.UtcNow.ToEpoch())
                             .Select(d => d.Id)
-                            .ToArray();
+                            .ToList();
 
-                        // ReSharper disable once AccessToDisposedClosure
-                        Array.ForEach(ids, id => bucket.Remove(id));
-                        logger.Trace($"Outdated records removed {ids.Length} records from the '{type}' document.");
+                        bucket.Remove(ids, TimeSpan.FromSeconds(30));
+                        logger.Trace($"Outdated records removed {ids.Count} records from the '{type}' document.");
                     }
 
                     cancellationToken.WaitHandle.WaitOne(storage.Options.ExpirationCheckInterval);

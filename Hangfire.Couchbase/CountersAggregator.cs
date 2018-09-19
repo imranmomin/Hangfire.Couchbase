@@ -2,7 +2,7 @@
 using System.Linq;
 using System.Threading;
 using System.Collections.Generic;
-
+using System.Threading.Tasks;
 using Couchbase;
 using Couchbase.Core;
 using Couchbase.Linq;
@@ -49,14 +49,14 @@ namespace Hangfire.Couchbase
                         if (counters.TryGetValue(key, out var data))
                         {
                             Counter aggregated = context.Query<Counter>()
-                                .FirstOrDefault(c => c.DocumentType == DocumentTypes.Counter && c.Type == CounterTypes.Aggregrate && c.Key == key);
+                                .FirstOrDefault(c => c.DocumentType == DocumentTypes.Counter && c.Type == CounterTypes.Aggregate && c.Key == key);
 
                             if (aggregated == null)
                             {
                                 aggregated = new Counter
                                 {
                                     Key = key,
-                                    Type = CounterTypes.Aggregrate,
+                                    Type = CounterTypes.Aggregate,
                                     Value = data.Value,
                                     ExpireOn = data.ExpireOn
                                 };
@@ -70,15 +70,13 @@ namespace Hangfire.Couchbase
                             IOperationResult<Counter> result = bucket.Upsert(aggregated.Id, aggregated);
                             if (result.Success)
                             {
-                                List<IDocument<Counter>> documents = rawCounters
+                                IList<string> ids = rawCounters
                                     .Where(counter => counter.Key == key)
-                                    .Select(counter => new Document<Counter> { Id = counter.Id, Content = counter })
-                                    .Cast<IDocument<Counter>>()
+                                    .Select(counter => counter.Id)
                                     .ToList();
-
-                                // ReSharper disable once AccessToDisposedClosure
-                                bucket.RemoveAsync(documents).Wait(cancellationToken);
-                                logger.Trace($"Total {documents.Count} records from the 'Counter:{aggregated.Key}' were aggregated.");
+                                 
+                                bucket.Remove(ids, new ParallelOptions { CancellationToken = cancellationToken }, TimeSpan.FromMinutes(1));
+                                logger.Trace($"Total {ids.Count} records from the 'Counter:{aggregated.Key}' were aggregated.");
                             }
                         }
                     });

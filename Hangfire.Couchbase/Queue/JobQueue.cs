@@ -46,10 +46,10 @@ namespace Hangfire.Couchbase.Queue
 
                             if (data != null)
                             {
-                                // mark the document
-                                data.FetchedAt = DateTime.UtcNow.ToEpoch();
+                                IDocumentFragment<Documents.Queue> result = bucket.MutateIn<Documents.Queue>(data.Id)
+                                    .Upsert(q => q.FetchedAt, DateTime.UtcNow.ToEpoch(), true)
+                                    .Execute();
 
-                                IOperationResult result = bucket.Upsert(data.Id, data);
                                 if (result.Success) return new FetchedJob(storage, data);
                             }
                         }
