@@ -316,13 +316,13 @@ namespace Hangfire.Couchbase
 
             DateTime lastHeartbeat = DateTime.UtcNow.Add(timeOut.Negate());
             BucketContext context = new BucketContext(bucket);
-            string[] documentIds = context.Query<Documents.Server>()
+            IList<string> ids = context.Query<Documents.Server>()
                 .Where(s => s.DocumentType == DocumentTypes.Server && s.LastHeartbeat < lastHeartbeat)
                 .Select(s => s.Id)
                 .ToArray();
 
-            Array.ForEach(documentIds, id => bucket.Remove(id));
-            return documentIds.Length;
+             bucket.Remove(ids, TimeSpan.FromSeconds(30));
+            return ids.Count;
         }
 
         #endregion
@@ -353,13 +353,24 @@ namespace Hangfire.Couchbase
             }).ToArray();
 
             BucketContext context = new BucketContext(bucket);
-            IEnumerable<Hash> hashes = context.Query<Hash>().Where(h => h.DocumentType == DocumentTypes.Hash && h.Key == key);
+            var hashes = context.Query<Hash>()
+                .Where(h => h.DocumentType == DocumentTypes.Hash && h.Key == key)
+                .Select(h => new { h.Id, h.Field })
+                .ToList();
 
             foreach (Hash source in sources)
             {
-                Hash hash = hashes.FirstOrDefault(h => h.Field == source.Field);
-                if (hash != null && hash.Field == source.Field) source.Id = hash.Id;
-                bucket.Upsert(source.Id, source);
+                var hash = hashes.SingleOrDefault(h => h.Field == source.Field);
+                if (hash != null)
+                {
+                    bucket.MutateIn<Hash>(hash.Id)
+                        .Upsert(h => h.Value, source.Value, true)
+                        .Execute();
+                }
+                else
+                {
+                    bucket.Insert(source.Id, source);
+                }
             }
         }
 
