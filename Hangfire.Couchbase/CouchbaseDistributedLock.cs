@@ -42,7 +42,7 @@ namespace Hangfire.Couchbase
             while (string.IsNullOrEmpty(resourceId))
             {
                 int expireOn = DateTime.UtcNow.ToEpoch();
-                bool exists = context.Query<Lock>().Any(l => l.DocumentType == DocumentTypes.Lock && l.Name == name && l.ExpireOn > expireOn);
+                bool exists = context.Query<Lock>().Any(l => l.DocumentType == DocumentTypes.Lock && l.Name == name && l.ExpireOn.HasValue && l.ExpireOn > expireOn);
                 if (exists == false)
                 {
                     Lock @lock = new Lock { Name = name, ExpireOn = DateTime.UtcNow.Add(timeout).ToEpoch() };
