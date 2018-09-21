@@ -1,8 +1,9 @@
 ﻿using System;
 using System.Linq;
 using System.Threading;
-using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Collections.Generic;
+
 using Couchbase;
 using Couchbase.Core;
 using Couchbase.Linq;
@@ -64,7 +65,7 @@ namespace Hangfire.Couchbase
                             else
                             {
                                 aggregated.Value += data.Value;
-                                aggregated.ExpireOn = data.ExpireOn;
+                                aggregated.ExpireOn = new[] { aggregated.ExpireOn, data.ExpireOn }.Max();
                             }
 
                             IOperationResult<Counter> result = bucket.Upsert(aggregated.Id, aggregated);
@@ -74,7 +75,7 @@ namespace Hangfire.Couchbase
                                     .Where(counter => counter.Key == key)
                                     .Select(counter => counter.Id)
                                     .ToList();
-                                 
+
                                 bucket.Remove(ids, new ParallelOptions { CancellationToken = cancellationToken }, TimeSpan.FromMinutes(1));
                                 logger.Trace($"Total {ids.Count} records from the 'Counter:{aggregated.Key}' were aggregated.");
                             }
