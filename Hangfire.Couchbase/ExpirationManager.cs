@@ -37,11 +37,24 @@ namespace Hangfire.Couchbase
 
                     using (new CouchbaseDistributedLock(DISTRIBUTED_LOCK_KEY, defaultLockTimeout, storage))
                     {
-                        IList<string> ids = context.Query<DocumentBase>()
-                            .Where(d => d.DocumentType == type && d.ExpireOn.HasValue && d.ExpireOn < DateTime.UtcNow.ToEpoch())
-                            .Select(d => d.Id)
-                            .ToList();
+                        IQueryable<DocumentBase> query;
 
+                        // remove only the aggregrate counters when the type is Counter
+                        if (type == DocumentTypes.Counter)
+                        {
+                            query = context.Query<Counter>().Where(d => d.DocumentType == type && 
+                                                                        d.Type == CounterTypes.Aggregate && 
+                                                                        d.ExpireOn.HasValue && 
+                                                                        d.ExpireOn < DateTime.UtcNow.ToEpoch());
+                        }
+                        else
+                        {
+                            query = context.Query<Counter>().Where(d => d.DocumentType == type && 
+                                                                        d.ExpireOn.HasValue && 
+                                                                        d.ExpireOn < DateTime.UtcNow.ToEpoch());
+                        }
+
+                        IList<string> ids = query.Select(d => d.Id).ToList();
                         bucket.Remove(ids, TimeSpan.FromSeconds(30));
                         logger.Trace($"Outdated records removed {ids.Count} records from the '{type}' document.");
                     }
