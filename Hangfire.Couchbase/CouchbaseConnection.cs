@@ -265,14 +265,14 @@ namespace Hangfire.Couchbase
                     Workers = context.WorkerCount,
                     Queues = context.Queues,
                     CreatedOn = DateTime.UtcNow,
-                    LastHeartbeat = DateTime.UtcNow
+                    LastHeartbeat = DateTime.UtcNow.ToEpoch()
                 };
             }
             else
             {
                 server.Workers = context.WorkerCount;
                 server.Queues = context.Queues;
-                server.LastHeartbeat = DateTime.UtcNow;
+                server.LastHeartbeat = DateTime.UtcNow.ToEpoch();
             }
 
             bucket.Upsert(server.Id, server);
@@ -288,7 +288,7 @@ namespace Hangfire.Couchbase
 
             if (server != null)
             {
-                server.LastHeartbeat = DateTime.UtcNow;
+                server.LastHeartbeat = DateTime.UtcNow.ToEpoch();
                 bucket.Upsert(server.Id, server);
             }
         }
@@ -314,14 +314,14 @@ namespace Hangfire.Couchbase
                 throw new ArgumentException(@"invalid timeout", nameof(timeOut));
             }
 
-            DateTime lastHeartbeat = DateTime.UtcNow.Add(timeOut.Negate());
+            int lastHeartbeat = DateTime.UtcNow.Add(timeOut.Negate()).ToEpoch();
             BucketContext context = new BucketContext(bucket);
             IList<string> ids = context.Query<Documents.Server>()
                 .Where(s => s.DocumentType == DocumentTypes.Server && s.LastHeartbeat < lastHeartbeat)
                 .Select(s => s.Id)
                 .ToArray();
 
-             bucket.Remove(ids, TimeSpan.FromSeconds(30));
+            bucket.Remove(ids, TimeSpan.FromSeconds(30));
             return ids.Count;
         }
 
