@@ -23,8 +23,7 @@ namespace Hangfire.Couchbase.Documents
         public DateTime CreatedOn { get; set; }
 
         [JsonProperty("last_heartbeat")]
-        [JsonConverter(typeof(UnixDateTimeConverter))]
-        public DateTime LastHeartbeat { get; set; }
+        public int LastHeartbeat { get; set; }
 
         public override DocumentTypes DocumentType => DocumentTypes.Server;
     }
