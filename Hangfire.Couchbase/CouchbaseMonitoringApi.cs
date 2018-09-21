@@ -61,7 +61,7 @@ namespace Hangfire.Couchbase
                     .Select(server => new ServerDto
                     {
                         Name = server.ServerId,
-                        Heartbeat = server.LastHeartbeat,
+                        Heartbeat = server.LastHeartbeat.ToDateTime(),
                         Queues = server.Queues,
                         StartedAt = server.CreatedOn,
                         WorkersCount = server.Workers
