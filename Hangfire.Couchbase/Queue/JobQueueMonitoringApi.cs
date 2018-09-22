@@ -58,12 +58,10 @@ namespace Hangfire.Couchbase.Queue
             {
                 BucketContext context = new BucketContext(bucket);
                 return context.Query<Documents.Queue>()
-                    .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue)
+                    .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue && N1QlFunctions.IsMissing(q.FetchedAt.HasValue))
                     .OrderBy(q => q.CreatedOn)
-                    .Skip(from + 1).Take(perPage + 1)
-                    .AsEnumerable()
-                    .Where(q => q.FetchedAt.HasValue == false)
-                    .Select(c => c.JobId)
+                    .Skip(from).Take(perPage)
+                    .Select(q => q.JobId)
                     .AsEnumerable();
             }
         }
@@ -74,12 +72,10 @@ namespace Hangfire.Couchbase.Queue
             {
                 BucketContext context = new BucketContext(bucket);
                 return context.Query<Documents.Queue>()
-                    .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue)
+                    .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue && N1QlFunctions.IsNotMissing(q.FetchedAt))
                     .OrderBy(q => q.CreatedOn)
-                    .Skip(from + 1).Take(perPage + 1)
-                    .AsEnumerable()
-                    .Where(q => q.FetchedAt.HasValue)
-                    .Select(c => c.JobId)
+                    .Skip(from).Take(perPage)
+                    .Select(q => q.JobId)
                     .AsEnumerable();
             }
         }
