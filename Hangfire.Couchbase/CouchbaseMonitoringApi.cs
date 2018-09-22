@@ -144,7 +144,7 @@ namespace Hangfire.Couchbase
                     .ToDictionary(g => g.Key, g => (long)g.Sum(c => c.Value));
 
                 results = results.Concat(counters).ToDictionary(k => k.Key, v => v.Value);
-
+              
                 // get recurring-jobs counts
                 long count = context.Query<Set>()
                     .Where(s => s.DocumentType == DocumentTypes.Set && s.Key == "recurring-jobs")
@@ -183,11 +183,9 @@ namespace Hangfire.Couchbase
             {
                 BucketContext context = new BucketContext(bucket);
                 List<Documents.Queue> queues = context.Query<Documents.Queue>()
-                    .Where(q => q.DocumentType == DocumentTypes.Queue)
+                    .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue && N1QlFunctions.IsMissing(q.FetchedAt))
                     .OrderBy(q => q.CreatedOn)
                     .Skip(from).Take(perPage)
-                    .AsEnumerable()
-                    .Where(q => q.FetchedAt.HasValue == false)
                     .ToList();
 
                 return GetJobsOnQueue(bucket, queues, (state, job, fetchedAt) => new EnqueuedJobDto
@@ -208,11 +206,9 @@ namespace Hangfire.Couchbase
             {
                 BucketContext context = new BucketContext(bucket);
                 List<Documents.Queue> queues = context.Query<Documents.Queue>()
-                    .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue)
+                    .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue && N1QlFunctions.IsNotMissing(q.FetchedAt))
                     .OrderBy(q => q.CreatedOn)
                     .Skip(from).Take(perPage)
-                    .AsEnumerable()
-                    .Where(q => q.FetchedAt.HasValue)
                     .ToList();
 
                 return GetJobsOnQueue(bucket, queues, (state, job, fetchedAt) => new FetchedJobDto
