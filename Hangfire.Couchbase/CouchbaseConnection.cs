@@ -141,8 +141,11 @@ namespace Hangfire.Couchbase
             if (id == null) throw new ArgumentNullException(nameof(id));
             if (name == null) throw new ArgumentNullException(nameof(name));
 
-            IDocumentResult<Documents.Job> result = bucket.GetDocument<Documents.Job>(id);
-            return result.Success && result.Content != null && result.Content.Parameters.TryGetValue(name, out string value) ? value : null;
+            IDocumentFragment<Documents.Job> result = bucket.LookupIn<Documents.Job>(id)
+                .Get($"parameters.{name}")
+                .Execute();
+
+            return result.Success ? result.Content($"parameters.{name}").ToString() : null;
         }
 
         public override void SetJobParameter(string id, string name, string value)
@@ -150,20 +153,9 @@ namespace Hangfire.Couchbase
             if (id == null) throw new ArgumentNullException(nameof(id));
             if (name == null) throw new ArgumentNullException(nameof(name));
 
-            IDocumentResult<Documents.Job> result = bucket.GetDocument<Documents.Job>(id);
-            if (result.Success && result.Content != null)
-            {
-                Documents.Job data = result.Content;
-                if (data.Parameters.ContainsKey(name))
-                {
-                    data.Parameters[name] = value;
-                }
-                else
-                {
-                    data.Parameters.Add(name, value);
-                }
-                bucket.Upsert(id, data);
-            }
+            bucket.MutateIn<Documents.Job>(id)
+                .Upsert($"parameters.{name}", value)
+                .Execute();
         }
 
         #endregion
