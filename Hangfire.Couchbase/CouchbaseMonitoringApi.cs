@@ -118,14 +118,12 @@ namespace Hangfire.Couchbase
                 //query context
                 BucketContext context = new BucketContext(bucket);
 
-                // get counts of jobs groupby on state
+                // get counts of jobs group-by on state
                 Dictionary<string, long> states = context.Query<Documents.Job>()
-                    .Where(j => j.DocumentType == DocumentTypes.Job)
-                    .Select(j => j.StateName)
-                    .AsEnumerable()
-                    .Where(j => !string.IsNullOrEmpty(j))
-                    .GroupBy(j => j)
-                    .ToDictionary(g => g.Key, g => g.LongCount());
+                    .Where(j => j.DocumentType == DocumentTypes.Job && N1QlFunctions.IsValued(j.StateName))
+                    .GroupBy(j => j.StateName)
+                    .Select(j => new { j.Key, Count = j.LongCount() })
+                    .ToDictionary(g => g.Key, g => g.Count);
 
                 results = results.Concat(states).ToDictionary(k => k.Key, v => v.Value);
 
@@ -139,12 +137,12 @@ namespace Hangfire.Couchbase
                 // get sum of stats:succeeded counters  raw / aggregate
                 Dictionary<string, long> counters = context.Query<Counter>()
                     .Where(c => c.DocumentType == DocumentTypes.Counter && (c.Key == "stats:succeeded" || c.Key == "stats:deleted"))
-                    .AsEnumerable()
                     .GroupBy(c => c.Key)
-                    .ToDictionary(g => g.Key, g => (long)g.Sum(c => c.Value));
+                    .Select(c => new { c.Key, Sum = c.Sum(x => x.Value) })
+                    .ToDictionary(g => g.Key, g => (long)g.Sum);
 
                 results = results.Concat(counters).ToDictionary(k => k.Key, v => v.Value);
-              
+
                 // get recurring-jobs counts
                 long count = context.Query<Set>()
                     .Where(s => s.DocumentType == DocumentTypes.Set && s.Key == "recurring-jobs")
