@@ -3,16 +3,14 @@ using System.Collections.Generic;
 
 using Couchbase;
 using Couchbase.Core;
-using Newtonsoft.Json;
 using Hangfire.Server;
 using Hangfire.Storage;
 using Hangfire.Logging;
 using Couchbase.Management;
-using Couchbase.Core.Serialization;
 using Couchbase.Configuration.Client;
 
+using Hangfire.Couchbase.Json;
 using Hangfire.Couchbase.Queue;
-using Hangfire.Couchbase.Documents.Json;
 
 namespace Hangfire.Couchbase
 {
@@ -33,20 +31,13 @@ namespace Hangfire.Couchbase
         /// </summary>
         /// <param name="configuration">The configuration</param>
         /// <param name="defaultBucket">The default name of the bucket to use</param>
-        /// <param name="options">The CoubaseStorageOptions object to override any of the options</param>
+        /// <param name="options">The CouchbaseStorageOptions object to override any of the options</param>
         public CouchbaseStorage(ClientConfiguration configuration, string defaultBucket = "default", CouchbaseStorageOptions options = null)
         {
             Options = options ?? new CouchbaseStorageOptions();
             Options.DefaultBucket = defaultBucket;
 
-            JsonSerializerSettings settings = new JsonSerializerSettings
-            {
-                NullValueHandling = NullValueHandling.Ignore,
-                DateTimeZoneHandling = DateTimeZoneHandling.Utc,
-                ContractResolver = new DocumentContractResolver()
-            };
-
-            configuration.Serializer = () => new DefaultSerializer(settings, settings);
+            configuration.Serializer = () => new DocumentDefaultSerializer();
             Client = new Cluster(configuration);
 
             string indexPrefix = $"IDX_{defaultBucket}";
@@ -97,7 +88,7 @@ namespace Hangfire.Couchbase
             logger.Info("Using the following options for Couchbase job storage:");
             logger.Info($"     Couchbase Url: {string.Join(",", Client.Configuration.Servers.Select(s => s.AbsoluteUri))}");
             logger.Info($"     Request Timeout: {Options.RequestTimeout}");
-            logger.Info($"     Counter Agggerate Interval: {Options.CountersAggregateInterval.TotalSeconds} seconds");
+            logger.Info($"     Counter Aggregate Interval: {Options.CountersAggregateInterval.TotalSeconds} seconds");
             logger.Info($"     Queue Poll Interval: {Options.QueuePollInterval.TotalSeconds} seconds");
             logger.Info($"     Expiration Check Interval: {Options.ExpirationCheckInterval.TotalSeconds} seconds");
         }
