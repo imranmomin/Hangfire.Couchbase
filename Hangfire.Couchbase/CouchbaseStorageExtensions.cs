@@ -2,11 +2,6 @@
 using Hangfire.Couchbase;
 using Couchbase.Configuration.Client;
 
-#if NETFULL
-using Couchbase.Configuration.Client.Providers;
-using Couchbase;
-#endif
-
 #if NETSTANDARD
 using Microsoft.Extensions.Configuration;
 #endif
@@ -52,11 +47,8 @@ namespace Hangfire
             if (string.IsNullOrEmpty(sectionName)) throw new ArgumentNullException(nameof(sectionName));
             if (string.IsNullOrEmpty(defaultBucket)) throw new ArgumentNullException(nameof(defaultBucket));
 
-            CouchbaseClientSection configurationSection = System.Configuration.ConfigurationManager.GetSection(sectionName) as CouchbaseClientSection;
-            ClientConfiguration configuration = new ClientConfiguration(configurationSection);
-            CouchbaseStorage storage = new CouchbaseStorage(configuration, defaultBucket, options);
+            CouchbaseStorage storage = new CouchbaseStorage(sectionName, defaultBucket, options);
             return global.UseStorage(storage);
-
         }
 #endif
 
@@ -77,11 +69,7 @@ namespace Hangfire
             if (string.IsNullOrEmpty(sectionName)) throw new ArgumentNullException(nameof(sectionName));
             if (string.IsNullOrEmpty(defaultBucket)) throw new ArgumentNullException(nameof(defaultBucket));
 
-            CouchbaseClientDefinition definition = new CouchbaseClientDefinition();
-            configuration.GetSection(sectionName).Bind(definition);
-
-            ClientConfiguration config = new ClientConfiguration(definition);
-            CouchbaseStorage storage = new CouchbaseStorage(config, defaultBucket, options);
+            CouchbaseStorage storage = new CouchbaseStorage(configuration, sectionName, defaultBucket, options);
             return global.UseStorage(storage);
         }
 #endif

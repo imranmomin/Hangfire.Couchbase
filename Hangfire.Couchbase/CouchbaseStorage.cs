@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using System.Collections.Generic;
 
 using Couchbase;
@@ -12,6 +13,14 @@ using Couchbase.Configuration.Client;
 using Hangfire.Couchbase.Json;
 using Hangfire.Couchbase.Queue;
 
+#if NETFULL
+using Couchbase.Configuration.Client.Providers;
+#endif
+
+#if NETSTANDARD
+using Microsoft.Extensions.Configuration;
+#endif
+
 namespace Hangfire.Couchbase
 {
     /// <summary>
@@ -20,20 +29,65 @@ namespace Hangfire.Couchbase
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1001:TypesThatOwnDisposableFieldsShouldBeDisposable")]
     public sealed class CouchbaseStorage : JobStorage
     {
-        internal CouchbaseStorageOptions Options { get; }
+        internal CouchbaseStorageOptions Options { get; private set; }
 
-        internal PersistentJobQueueProviderCollection QueueProviders { get; }
+        internal PersistentJobQueueProviderCollection QueueProviders { get; private set; }
 
-        internal Cluster Client { get; }
+        internal Cluster Client { get; private set; }
 
         /// <summary>
-        /// Initializes the CouchbaseStorage form the url auth secret provide.
+        /// Initializes the CouchbaseStorage form ClientConfiguration.
         /// </summary>
         /// <param name="configuration">The configuration</param>
         /// <param name="defaultBucket">The default name of the bucket to use</param>
         /// <param name="options">The CouchbaseStorageOptions object to override any of the options</param>
         public CouchbaseStorage(ClientConfiguration configuration, string defaultBucket = "default", CouchbaseStorageOptions options = null)
         {
+            Initialize(configuration, defaultBucket, options);
+        }
+
+#if NETFULL
+        /// <summary>
+        /// Initializes the CouchbaseStorage from the XML configuration section.
+        /// </summary>
+        /// <param name="sectionName">The xml configuration section name</param>
+        /// <param name="defaultBucket">The default name of the bucket to use</param>
+        /// <param name="options">The CouchbaseStorageOptions object to override any of the options</param>
+        public CouchbaseStorage(string sectionName, string defaultBucket = "default", CouchbaseStorageOptions options = null)
+        {
+            if (string.IsNullOrEmpty(sectionName)) throw new ArgumentNullException(nameof(sectionName));
+
+            CouchbaseClientSection configurationSection = System.Configuration.ConfigurationManager.GetSection(sectionName) as CouchbaseClientSection;
+            ClientConfiguration configuration = new ClientConfiguration(configurationSection);
+            Initialize(configuration, defaultBucket, options);
+        }
+#endif
+
+#if NETSTANDARD
+        /// <summary>
+        /// Initializes the CouchbaseStorage form the IConfiguration section.
+        /// </summary>
+        /// <param name="configuration">Represents a set of key/value application configuration properties.</param>
+        /// <param name="sectionName">The configuration section name</param>
+        /// <param name="defaultBucket">The default name of the bucket to use</param>
+        /// <param name="options">The CouchbaseStorageOptions object to override any of the options</param>
+        public CouchbaseStorage(IConfiguration configuration, string sectionName, string defaultBucket = "default", CouchbaseStorageOptions options = null)
+        {
+            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            if (string.IsNullOrEmpty(sectionName)) throw new ArgumentNullException(nameof(sectionName));
+            
+            CouchbaseClientDefinition definition = new CouchbaseClientDefinition();
+            configuration.GetSection(sectionName).Bind(definition);
+            ClientConfiguration config = new ClientConfiguration(definition);
+            Initialize(config, defaultBucket, options);
+        }
+#endif
+
+        private void Initialize(ClientConfiguration configuration, string defaultBucket, CouchbaseStorageOptions options)
+        {
+            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            if (string.IsNullOrEmpty(defaultBucket)) throw new ArgumentNullException(nameof(defaultBucket));
+
             Options = options ?? new CouchbaseStorageOptions();
             Options.DefaultBucket = defaultBucket;
 
