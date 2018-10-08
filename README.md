@@ -6,7 +6,6 @@
 
 This repo will add a [Couchbase](https://www.couchbase.com/products/server) N1QL storage support to [Hangfire](http://hangfire.io) - fire-and-forget, delayed and recurring tasks runner for .NET. Scalable and reliable background job runner. Supports multiple servers, CPU and I/O intensive, long-running and short-running jobs.
 
-
 ## Installation
 
 [Hangfire.Couchbase](https://www.nuget.org/packages/Hangfire.Couchbase) is available as a NuGet package. Install it using the NuGet Package Console window:
@@ -15,22 +14,88 @@ This repo will add a [Couchbase](https://www.couchbase.com/products/server) N1QL
 PM> Install-Package Hangfire.Couchbase
 ```
 
-
 ## Usage
 
-Use one the following ways to initialize `CouchbaseStorage`
+##### 1. Using the `ClientConfiguration` to initialize the server
 
 ```csharp
-
+ClientConfiguration configuration = new ClientConfiguration {
+    BucketConfigs = new Dictionary<string, BucketConfiguration> {
+      {"default", new BucketConfiguration {
+          PoolConfiguration = new PoolConfiguration {
+              MaxSize = 6,
+              MinSize = 4,
+              SendTimeout = 12000
+          },
+          DefaultOperationLifespan = 123,
+          Password = "password",
+          Username = "username",
+          BucketName = "default"
+      }}
+    }
+};
 
 GlobalConfiguration.Configuration.UseCouchbaseStorage(configuration, "<defaultBucket>");
+```
 
-Hangfire.Couchbase.CouchbaseStorage storage = new Hangfire.Couchbase.CouchbaseStorage(configuration", "<defaultBucket>");
-GlobalConfiguration.Configuration.UseStorage(storage);
+##### 2. Using the XML configuration to intialzie .Net application
+
+```xml
+<configSections>
+  <sectionGroup name="couchbaseClients">
+    <section name="couchbase" type="Couchbase.Configuration.Client.Providers.CouchbaseClientSection, Couchbase.NetClient" />
+  </sectionGroup>
+</configSections>
+<couchbaseClients>
+  <couchbase>
+    <servers>
+      <add uri="http://localhost:8091"></add>
+    </servers>
+    <buckets>
+      <add name="default" password="password" />
+    </buckets>
+    <serializer name="CustomSerializer" type="Hangfire.Couchbase.Json.DocumentDefaultSerializer, Hangfire.Couchbase" />
+  </couchbase>
+</couchbaseClients>
 ```
 
 ```csharp
-// customize any options
+GlobalConfiguration.Configuration.UseCouchbaseStorage("couchbaseClients/couchbase", "<defaultBucket>");
+```
+
+##### 3. Using the JSON configuration for .Net Core application
+
+```json
+{
+  "couchbase": {
+    "basic": {
+      "servers": [
+        "http://localhost:8091/"
+      ],
+      "buckets": [
+        {
+          "name": "default",
+          "password": "password"
+        }
+      ],
+      "serializer": "Hangfire.Couchbase.Json.DocumentDefaultSerializer, Hangfire.Couchbase"
+    }
+  }
+}
+```
+
+```csharp
+IConfigurationBuilder builder = new ConfigurationBuilder()
+    .SetBasePath(Directory.GetCurrentDirectory())
+    .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
+
+IConfigurationRoot configuration = builder.Build();
+GlobalConfiguration.Configuration.UseCouchbaseStorage(configuration, "couchbase:basic", "<defaultBucket>");
+```
+
+**You can also customize some of the options to fine tune the job server. The below are defaults; if no overrides found**
+
+```csharp
 Hangfire.Couchbase.CouchbaseStorageOptions options = new Hangfire.Couchbase.CouchbaseStorageOptions
 {
     RequestTimeout = TimeSpan.FromSeconds(30),
@@ -40,13 +105,7 @@ Hangfire.Couchbase.CouchbaseStorageOptions options = new Hangfire.Couchbase.Couc
 };
 
 GlobalConfiguration.Configuration.UseCouchbaseStorage(configuration, "<defaultBucket>", options);
-
-// or 
-
-Hangfire.Couchbase.CouchbaseStorage storage = new Hangfire.Couchbase.CouchbaseStorage(configuration, "<defaultBucket>", options);
-GlobalConfiguration.Configuration.UseStorage(storage);
 ```
-
 
 ## Questions? Problems?
 
