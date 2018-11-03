@@ -38,6 +38,25 @@ ClientConfiguration configuration = new ClientConfiguration {
 GlobalConfiguration.Configuration.UseCouchbaseStorage(configuration, "<defaultBucket>");
 ```
 
+If you're using Couchbase 5.0+, then you'll need to supply RBAC credentials:
+ ```csharp
+ClientConfiguration configuration = new ClientConfiguration {
+    BucketConfigs = new Dictionary<string, BucketConfiguration> {
+      {"default", new BucketConfiguration {
+          PoolConfiguration = new PoolConfiguration {
+              MaxSize = 6,
+              MinSize = 4,
+              SendTimeout = 12000
+          },
+          DefaultOperationLifespan = 123,
+          BucketName = "default"
+      }}
+    }
+};
+ configuration.SetAuthenticator(new PasswordAuthenticator("<username>", "<password>"));
+ GlobalConfiguration.Configuration.UseCouchbaseStorage(configuration, "<defaultBucket>");
+```
+
 ##### 2. Using the XML configuration to intialzie .Net application
 
 ```xml
