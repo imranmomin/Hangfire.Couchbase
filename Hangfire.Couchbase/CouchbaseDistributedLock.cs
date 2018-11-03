@@ -5,6 +5,7 @@ using Couchbase;
 using Couchbase.Core;
 using Couchbase.Linq;
 
+using Hangfire.Logging;
 using Hangfire.Couchbase.Helper;
 using Hangfire.Couchbase.Documents;
 
@@ -12,6 +13,7 @@ namespace Hangfire.Couchbase
 {
     internal class CouchbaseDistributedLock : IDisposable
     {
+        private readonly ILog logger = LogProvider.For<CouchbaseDistributedLock>();
         private readonly IBucket bucket;
         private string resourceId;
 
@@ -34,6 +36,8 @@ namespace Hangfire.Couchbase
 
         private void Acquire(string name, TimeSpan timeout)
         {
+            logger.Trace($"Trying to acquire lock for {name} within {timeout.TotalSeconds} seconds");
+
             System.Diagnostics.Stopwatch acquireStart = new System.Diagnostics.Stopwatch();
             acquireStart.Start();
 

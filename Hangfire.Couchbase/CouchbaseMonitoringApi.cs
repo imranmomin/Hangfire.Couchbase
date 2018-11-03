@@ -424,7 +424,8 @@ namespace Hangfire.Couchbase
                     .Where(c => c.Type == CounterTypes.Aggregate && c.DocumentType == DocumentTypes.Counter)
                     .AsEnumerable()
                     .Where(c => keys.ContainsKey(c.Key))
-                    .ToDictionary(k => k.Key, k => k.Value);
+                    .GroupBy(c => c.Key)
+                    .ToDictionary(k => k.Key, k => k.Sum(c => c.Value));
             }
 
             foreach (string key in keys.Keys)

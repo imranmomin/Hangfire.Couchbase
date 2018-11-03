@@ -15,12 +15,16 @@ namespace Hangfire.Couchbase.Queue
     internal class JobQueue : IPersistentJobQueue
     {
         private readonly CouchbaseStorage storage;
-        private const string DISTRIBUTED_LOCK_KEY = "locks:job:dequeue";
-        private readonly TimeSpan defaultLockTimeout = TimeSpan.FromSeconds(15);
+        private const string DISTRIBUTED_LOCK_KEY = "locks:job:dequeue:{0}";
+        private readonly TimeSpan defaultLockTimeout;
         private readonly TimeSpan invisibilityTimeout = TimeSpan.FromMinutes(30);
         private readonly object syncLock = new object();
 
-        public JobQueue(CouchbaseStorage storage) => this.storage = storage;
+        public JobQueue(CouchbaseStorage storage)
+        {
+            this.storage = storage;
+            defaultLockTimeout = TimeSpan.FromSeconds(15) + storage.Options.QueuePollInterval;
+        }
 
         public IFetchedJob Dequeue(string[] queues, CancellationToken cancellationToken)
         {
@@ -31,10 +35,14 @@ namespace Hangfire.Couchbase.Queue
                 lock (syncLock)
                 {
                     int invisibilityTimeoutEpoch = DateTime.UtcNow.Add(invisibilityTimeout.Negate()).ToEpoch();
+                    string queue = queues.ElementAt(index);
+                    string lockName = string.Format(DISTRIBUTED_LOCK_KEY, queue)
+                        .Replace("  ", "-")
+                        .Replace(" ", "-")
+                        .ToLower();
 
-                    using (new CouchbaseDistributedLock(DISTRIBUTED_LOCK_KEY, defaultLockTimeout, storage))
+                    using (new CouchbaseDistributedLock(lockName, defaultLockTimeout, storage))
                     {
-                        string queue = queues.ElementAt(index);
                         using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
                         {
                             BucketContext context = new BucketContext(bucket);
