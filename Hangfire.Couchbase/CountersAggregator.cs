@@ -18,19 +18,23 @@ namespace Hangfire.Couchbase
     internal class CountersAggregator : IServerComponent
 #pragma warning restore 618
     {
-        private static readonly ILog logger = LogProvider.For<CountersAggregator>();
-        private const string DISTRIBUTED_LOCK_KEY = "countersaggragator";
-        private static readonly TimeSpan defaultLockTimeout = TimeSpan.FromMinutes(2);
+        private readonly ILog logger = LogProvider.For<CountersAggregator>();
+        private const string DISTRIBUTED_LOCK_KEY = "locks:countersaggragator";
+        private readonly TimeSpan defaultLockTimeout ;
         private readonly CouchbaseStorage storage;
 
-        public CountersAggregator(CouchbaseStorage storage) => this.storage = storage ?? throw new ArgumentNullException(nameof(storage));
+        public CountersAggregator(CouchbaseStorage storage)
+        {
+            this.storage = storage ?? throw new ArgumentNullException(nameof(storage));
+            defaultLockTimeout = TimeSpan.FromSeconds(30) + storage.Options.QueuePollInterval;
+        }
 
         public void Execute(CancellationToken cancellationToken)
         {
-            logger.Debug("Aggregating records in 'Counter' table.");
-
             using (new CouchbaseDistributedLock(DISTRIBUTED_LOCK_KEY, defaultLockTimeout, storage))
             {
+                logger.Debug("Aggregating records in 'Counter' table.");
+
                 using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
                 {
                     // context
@@ -77,7 +81,7 @@ namespace Hangfire.Couchbase
                                     .ToList();
 
                                 bucket.Remove(ids, new ParallelOptions { CancellationToken = cancellationToken }, TimeSpan.FromMinutes(1));
-                                logger.Trace($"Total {ids.Count} records from the 'Counter:{aggregated.Key}' were aggregated.");
+                                logger.Debug($"Total {ids.Count} records from the 'Counter:{aggregated.Key}' were aggregated.");
                             }
                         }
                     });
