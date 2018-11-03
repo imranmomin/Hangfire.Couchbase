@@ -345,10 +345,8 @@ namespace Hangfire.Couchbase
             }).ToArray();
 
             BucketContext context = new BucketContext(bucket);
-            var hashes = context.Query<Hash>()
-                .Where(h => h.DocumentType == DocumentTypes.Hash && h.Key == key)
-                .Select(h => new { h.Id, h.Field })
-                .ToList();
+            IQueryable<Hash> hashes = context.Query<Hash>()
+                .Where(h => h.DocumentType == DocumentTypes.Hash && h.Key == key);
 
             foreach (Hash source in sources)
             {
