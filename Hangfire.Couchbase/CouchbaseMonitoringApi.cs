@@ -19,7 +19,12 @@ namespace Hangfire.Couchbase
     internal sealed class CouchbaseMonitoringApi : IMonitoringApi
     {
         private readonly CouchbaseStorage storage;
+        private readonly object cacheLock = new object();
+        private static readonly TimeSpan cacheTimeout = TimeSpan.FromSeconds(2);
 
+        private DateTime cacheUpdated;
+        private StatisticsDto cacheStatisticsDto;
+        
         public CouchbaseMonitoringApi(CouchbaseStorage storage) => this.storage = storage;
 
         public IList<QueueWithTopEnqueuedJobsDto> Queues()
@@ -111,66 +116,75 @@ namespace Hangfire.Couchbase
 
         public StatisticsDto GetStatistics()
         {
-            Dictionary<string, long> results = new Dictionary<string, long>();
-
-            using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
+            lock (cacheLock)
             {
-                //query context
-                BucketContext context = new BucketContext(bucket);
-
-                // get counts of jobs group-by on state
-                Dictionary<string, long> states = context.Query<Documents.Job>()
-                    .Where(j => j.DocumentType == DocumentTypes.Job && N1QlFunctions.IsValued(j.StateName))
-                    .GroupBy(j => j.StateName)
-                    .Select(j => new { j.Key, Count = j.LongCount() })
-                    .ToDictionary(g => g.Key, g => g.Count);
-
-                results = results.Concat(states).ToDictionary(k => k.Key, v => v.Value);
-
-                // get counts of servers
-                long servers = context.Query<Documents.Server>()
-                    .Where(s => s.DocumentType == DocumentTypes.Server)
-                    .LongCount();
-
-                results.Add("Servers", servers);
-
-                // get sum of stats:succeeded counters  raw / aggregate
-                Dictionary<string, long> counters = context.Query<Counter>()
-                    .Where(c => c.DocumentType == DocumentTypes.Counter && (c.Key == "stats:succeeded" || c.Key == "stats:deleted"))
-                    .GroupBy(c => c.Key)
-                    .Select(c => new { c.Key, Sum = c.Sum(x => x.Value) })
-                    .ToDictionary(g => g.Key, g => (long)g.Sum);
-
-                results = results.Concat(counters).ToDictionary(k => k.Key, v => v.Value);
-
-                // get recurring-jobs counts
-                long count = context.Query<Set>()
-                    .Where(s => s.DocumentType == DocumentTypes.Set && s.Key == "recurring-jobs")
-                    .LongCount();
-
-                results.Add("recurring-jobs", count);
-
-                long GetValueOrDefault(string key) => results.Where(r => r.Key == key).Select(r => r.Value).SingleOrDefault();
-
-                // ReSharper disable once UseObjectOrCollectionInitializer
-                StatisticsDto statistics = new StatisticsDto
+                if (cacheStatisticsDto == null || cacheUpdated.Add(cacheTimeout) < DateTime.UtcNow)
                 {
-                    Enqueued = GetValueOrDefault("Enqueued"),
-                    Failed = GetValueOrDefault("Failed"),
-                    Processing = GetValueOrDefault("Processing"),
-                    Scheduled = GetValueOrDefault("Scheduled"),
-                    Succeeded = GetValueOrDefault("stats:succeeded"),
-                    Deleted = GetValueOrDefault("stats:deleted"),
-                    Recurring = GetValueOrDefault("recurring-jobs"),
-                    Servers = GetValueOrDefault("Servers"),
-                };
+                    Dictionary<string, long> results = new Dictionary<string, long>();
 
-                statistics.Queues = storage.QueueProviders
-                    .SelectMany(x => x.GetJobQueueMonitoringApi().GetQueues())
-                    .Count();
+                    using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
+                    {
+                        //query context
+                        BucketContext context = new BucketContext(bucket);
 
-                return statistics;
+                        // get counts of jobs group-by on state
+                        Dictionary<string, long> states = context.Query<Documents.Job>()
+                            .Where(j => j.DocumentType == DocumentTypes.Job && N1QlFunctions.IsValued(j.StateName))
+                            .GroupBy(j => j.StateName)
+                            .Select(j => new { j.Key, Count = j.LongCount() })
+                            .ToDictionary(g => g.Key, g => g.Count);
+
+                        results = results.Concat(states).ToDictionary(k => k.Key, v => v.Value);
+
+                        // get counts of servers
+                        long servers = context.Query<Documents.Server>()
+                            .Where(s => s.DocumentType == DocumentTypes.Server)
+                            .LongCount();
+
+                        results.Add("Servers", servers);
+
+                        // get sum of stats:succeeded counters  raw / aggregate
+                        Dictionary<string, long> counters = context.Query<Counter>()
+                            .Where(c => c.DocumentType == DocumentTypes.Counter && (c.Key == "stats:succeeded" || c.Key == "stats:deleted"))
+                            .GroupBy(c => c.Key)
+                            .Select(c => new { c.Key, Sum = c.Sum(x => x.Value) })
+                            .ToDictionary(g => g.Key, g => (long)g.Sum);
+
+                        results = results.Concat(counters).ToDictionary(k => k.Key, v => v.Value);
+
+                        // get recurring-jobs counts
+                        long count = context.Query<Set>()
+                            .Where(s => s.DocumentType == DocumentTypes.Set && s.Key == "recurring-jobs")
+                            .LongCount();
+
+                        results.Add("recurring-jobs", count);
+
+                        long GetValueOrDefault(string key) => results.Where(r => r.Key == key).Select(r => r.Value).SingleOrDefault();
+
+                        // ReSharper disable once UseObjectOrCollectionInitializer
+                        cacheStatisticsDto = new StatisticsDto
+                        {
+                            Enqueued = GetValueOrDefault("Enqueued"),
+                            Failed = GetValueOrDefault("Failed"),
+                            Processing = GetValueOrDefault("Processing"),
+                            Scheduled = GetValueOrDefault("Scheduled"),
+                            Succeeded = GetValueOrDefault("stats:succeeded"),
+                            Deleted = GetValueOrDefault("stats:deleted"),
+                            Recurring = GetValueOrDefault("recurring-jobs"),
+                            Servers = GetValueOrDefault("Servers"),
+                        };
+
+                        cacheStatisticsDto.Queues = storage.QueueProviders
+                            .SelectMany(x => x.GetJobQueueMonitoringApi().GetQueues())
+                            .Count();
+                         
+                        cacheUpdated = DateTime.UtcNow;
+                    }
+                }
+
+                return cacheStatisticsDto;
             }
+
         }
 
         #region Job List

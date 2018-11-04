@@ -16,9 +16,11 @@ namespace Hangfire.Couchbase
         private readonly ILog logger = LogProvider.For<CouchbaseDistributedLock>();
         private readonly IBucket bucket;
         private string resourceId;
+        private readonly string resource;
 
         public CouchbaseDistributedLock(string resource, TimeSpan timeout, CouchbaseStorage storage)
         {
+            this.resource = resource;
             bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket);
             Acquire(resource, timeout);
         }
@@ -29,6 +31,7 @@ namespace Hangfire.Couchbase
             {
                 bucket.Remove(resourceId);
                 resourceId = string.Empty;
+                logger.Trace($"Lock released for {resource}");
             }
 
             bucket?.Dispose();
@@ -51,6 +54,8 @@ namespace Hangfire.Couchbase
                 {
                     Lock @lock = new Lock { Name = name, ExpireOn = DateTime.UtcNow.Add(timeout).ToEpoch() };
                     IOperationResult<Lock> result = bucket.Insert(@lock.Id, @lock);
+
+                    logger.Trace($"Acquired lock for {resource} in {acquireStart.Elapsed.TotalSeconds} seconds");
                     if (result.Success) resourceId = result.Id;
                 }
 
