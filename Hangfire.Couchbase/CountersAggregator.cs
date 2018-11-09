@@ -10,6 +10,7 @@ using Couchbase.Linq;
 using Hangfire.Server;
 using Hangfire.Logging;
 
+using Hangfire.Couchbase.Helper;
 using Hangfire.Couchbase.Documents;
 
 namespace Hangfire.Couchbase
@@ -20,7 +21,7 @@ namespace Hangfire.Couchbase
     {
         private readonly ILog logger = LogProvider.For<CountersAggregator>();
         private const string DISTRIBUTED_LOCK_KEY = "locks:countersaggragator";
-        private readonly TimeSpan defaultLockTimeout ;
+        private readonly TimeSpan defaultLockTimeout;
         private readonly CouchbaseStorage storage;
 
         public CountersAggregator(CouchbaseStorage storage)
@@ -47,29 +48,37 @@ namespace Hangfire.Couchbase
                     Dictionary<string, (int Value, int? ExpireOn)> counters = rawCounters.GroupBy(c => c.Key)
                         .ToDictionary(k => k.Key, v => (Value: v.Sum(c => c.Value), ExpireOn: v.Max(c => c.ExpireOn)));
 
-                    Array.ForEach(counters.Keys.ToArray(), key =>
+                    foreach (string key in counters.Keys)
                     {
                         cancellationToken.ThrowIfCancellationRequested();
 
                         if (counters.TryGetValue(key, out var data))
                         {
-                            Counter aggregated = context.Query<Counter>()
-                                .FirstOrDefault(c => c.DocumentType == DocumentTypes.Counter && c.Type == CounterTypes.Aggregate && c.Key == key);
+                            Counter aggregated;
+                            string id = key.GenerateHash();
+                            IOperationResult<Counter> operation = bucket.Get<Counter>(id, TimeSpan.FromMinutes(1));
 
-                            if (aggregated == null)
+                            if (operation.Success == false && operation.Value == null)
                             {
                                 aggregated = new Counter
                                 {
+                                    Id = id,
                                     Key = key,
                                     Type = CounterTypes.Aggregate,
                                     Value = data.Value,
                                     ExpireOn = data.ExpireOn
                                 };
                             }
-                            else
+                            else if (operation.Success && operation.Value.Type == CounterTypes.Aggregate)
                             {
+                                aggregated = operation.Value;
                                 aggregated.Value += data.Value;
                                 aggregated.ExpireOn = new[] { aggregated.ExpireOn, data.ExpireOn }.Max();
+                            }
+                            else
+                            {
+                                logger.Trace($"Document with ID: {id} is a {operation.Value.Type.ToString()} type");
+                                continue;
                             }
 
                             IOperationResult<Counter> result = bucket.Upsert(aggregated.Id, aggregated);
@@ -84,7 +93,7 @@ namespace Hangfire.Couchbase
                                 logger.Debug($"Total {ids.Count} records from the 'Counter:{aggregated.Key}' were aggregated.");
                             }
                         }
-                    });
+                    }
                 }
 
                 logger.Trace("Records from the 'Counter' table aggregated.");
