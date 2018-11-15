@@ -27,14 +27,14 @@ namespace Hangfire.Couchbase
         public CountersAggregator(CouchbaseStorage storage)
         {
             this.storage = storage ?? throw new ArgumentNullException(nameof(storage));
-            defaultLockTimeout = TimeSpan.FromSeconds(30) + storage.Options.QueuePollInterval;
+            defaultLockTimeout = TimeSpan.FromSeconds(30) + storage.Options.CountersAggregateInterval;
         }
 
         public void Execute(CancellationToken cancellationToken)
         {
             using (new CouchbaseDistributedLock(DISTRIBUTED_LOCK_KEY, defaultLockTimeout, storage))
             {
-                logger.Debug("Aggregating records in 'Counter' table.");
+                logger.Trace("Aggregating records in 'Counter' table.");
 
                 using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
                 {
@@ -55,7 +55,7 @@ namespace Hangfire.Couchbase
                         if (counters.TryGetValue(key, out var data))
                         {
                             Counter aggregated;
-                            string id = key.GenerateHash();
+                            string id = $"{key}:{CounterTypes.Aggregate}".GenerateHash();
                             IOperationResult<Counter> operation = bucket.Get<Counter>(id, TimeSpan.FromMinutes(1));
 
                             if (operation.Success == false && operation.Value == null)
@@ -77,7 +77,7 @@ namespace Hangfire.Couchbase
                             }
                             else
                             {
-                                logger.Trace($"Document with ID: {id} is a {operation.Value.Type.ToString()} type");
+                                logger.Warn($"Document with ID: {id} is a {operation.Value.Type.ToString()} type");
                                 continue;
                             }
 
@@ -90,7 +90,7 @@ namespace Hangfire.Couchbase
                                     .ToList();
 
                                 bucket.Remove(ids, new ParallelOptions { CancellationToken = cancellationToken }, TimeSpan.FromMinutes(1));
-                                logger.Debug($"Total {ids.Count} records from the 'Counter:{aggregated.Key}' were aggregated.");
+                                logger.Trace($"Total {ids.Count} records from the 'Counter:{aggregated.Key}' were aggregated.");
                             }
                         }
                     }

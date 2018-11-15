@@ -39,7 +39,7 @@ namespace Hangfire.Couchbase
                     cancellationToken.ThrowIfCancellationRequested();
                     using (new CouchbaseDistributedLock(DISTRIBUTED_LOCK_KEY, defaultLockTimeout, storage))
                     {
-                        logger.Debug($"Removing outdated records from the '{type}' document.");
+                        logger.Trace($"Removing outdated records from the '{type}' document.");
 
                         IQueryable<DocumentBase> query;
 
