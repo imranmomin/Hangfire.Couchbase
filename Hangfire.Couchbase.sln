@@ -3,7 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.27428.2015
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hangfire.Couchbase", "Hangfire.Couchbase\Hangfire.Couchbase.csproj", "{D8B6B1CB-F0AB-46DA-8EDF-E8123B500B2F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Hangfire.Couchbase", "Hangfire.Couchbase\Hangfire.Couchbase.csproj", "{D8B6B1CB-F0AB-46DA-8EDF-E8123B500B2F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hangfire.Couchbase.RabbitMq", "Hangfire.Couchbase.RabbitMq\Hangfire.Couchbase.RabbitMq.csproj", "{A01437A5-C76E-42BD-8E85-92FD2062DF43}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +17,10 @@ Global
 		{D8B6B1CB-F0AB-46DA-8EDF-E8123B500B2F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D8B6B1CB-F0AB-46DA-8EDF-E8123B500B2F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D8B6B1CB-F0AB-46DA-8EDF-E8123B500B2F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A01437A5-C76E-42BD-8E85-92FD2062DF43}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A01437A5-C76E-42BD-8E85-92FD2062DF43}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A01437A5-C76E-42BD-8E85-92FD2062DF43}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A01437A5-C76E-42BD-8E85-92FD2062DF43}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

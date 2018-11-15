@@ -1,0 +1,43 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net461;netstandard2.0</TargetFrameworks>
+    <ProductName>Hangfire.Couchbase.RabbitMq</ProductName>
+    <Title>Hangfire.Couchbase.RabbitMq</Title>
+    <Company>Hangfire.Couchbase</Company>
+    <Authors>Imran Momin</Authors>
+    <PackageLicenseUrl>https://github.com/imranmomin/Hangfire.Couchbase/blob/master/LICENSE</PackageLicenseUrl>
+    <PackageProjectUrl>https://github.com/imranmomin/Hangfire.Couchbase</PackageProjectUrl>
+    <Copyright>Copyright 2018</Copyright>
+    <PackageTags>Hangfire Couchbase RabbitMq</PackageTags>
+    <Description>This package adds support of RabbitMq to Couchbase for Hangfire</Description>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageVersion>1.0.0</PackageVersion>
+    <Version>1.0.0</Version>
+    <FileVersion>1.0.0.0</FileVersion>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <DefineConstants>NETCORE;NETSTANDARD;NETSTANDARD2_0</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net461'">
+    <DefineConstants>NET461;NETFULL</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|net461|AnyCPU'">
+    <DocumentationFile>bin\Release\net461\Hangfire.Couchbase.RabbitMq.xml</DocumentationFile>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|netstandard2.0|AnyCPU'">
+    <DocumentationFile>bin\Release\netstandard2.0\Hangfire.Couchbase.RabbitMq.xml</DocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\Hangfire.Couchbase\Entities\DocumentBase.cs" Link="Entities\DocumentBase.cs" />
+    <Compile Include="..\Hangfire.Couchbase\Entities\Job.cs" Link="Entities\Job.cs" />
+    <Compile Include="..\Hangfire.Couchbase\Entities\Queue.cs" Link="Entities\Queue.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Hangfire.Couchbase" Version="1.1.5" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Entities\" />
+    <Folder Include="Properties\" />
+  </ItemGroup>
+</Project>
