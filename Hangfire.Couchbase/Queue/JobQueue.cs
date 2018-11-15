@@ -6,6 +6,7 @@ using Couchbase;
 using Couchbase.Core;
 using Couchbase.Linq;
 using Hangfire.Storage;
+using Hangfire.Logging;
 
 using Hangfire.Couchbase.Helper;
 using Hangfire.Couchbase.Documents;
@@ -14,6 +15,7 @@ namespace Hangfire.Couchbase.Queue
 {
     internal class JobQueue : IPersistentJobQueue
     {
+        private readonly ILog logger = LogProvider.For<JobQueue>();
         private readonly CouchbaseStorage storage;
         private const string DISTRIBUTED_LOCK_KEY = "locks:job:dequeue:{0}";
         private readonly TimeSpan defaultLockTimeout;
@@ -41,16 +43,17 @@ namespace Hangfire.Couchbase.Queue
                         .Replace(" ", "-")
                         .ToLower();
 
+                    logger.Trace($"Looking for any jobs under '{queue}' queue");
+
                     using (new CouchbaseDistributedLock(lockName, defaultLockTimeout, storage))
                     {
                         using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
                         {
                             BucketContext context = new BucketContext(bucket);
                             Documents.Queue data = context.Query<Documents.Queue>()
-                                .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue)
+                                .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue && (N1QlFunctions.IsMissing(q.FetchedAt) || q.FetchedAt < invisibilityTimeoutEpoch))
                                 .OrderBy(q => q.CreatedOn)
-                                .AsEnumerable()
-                                .FirstOrDefault(q => q.FetchedAt.HasValue == false || q.FetchedAt < invisibilityTimeoutEpoch);
+                                .FirstOrDefault();
 
                             if (data != null)
                             {
@@ -62,9 +65,10 @@ namespace Hangfire.Couchbase.Queue
                             }
                         }
                     }
+
+                    logger.Trace($"Unable to find any jobs under '{queue}' queue");
                 }
 
-                Thread.Sleep(storage.Options.QueuePollInterval);
                 index = (index + 1) % queues.Length;
             }
         }
