@@ -69,6 +69,7 @@ namespace Hangfire.Couchbase.Queue
                     logger.Trace($"Unable to find any jobs under '{queue}' queue");
                 }
 
+                Thread.Sleep(storage.Options.QueuePollInterval);
                 index = (index + 1) % queues.Length;
             }
         }
