@@ -18,7 +18,7 @@ namespace Hangfire.Couchbase
 #pragma warning restore 618
     {
         private readonly ILog logger = LogProvider.For<ExpirationManager>();
-        private const string DISTRIBUTED_LOCK_KEY = "locks:expirationmanager";
+        private const string DISTRIBUTED_LOCK_KEY = "locks:expiration:manager";
         private readonly TimeSpan defaultLockTimeout;
         private readonly DocumentTypes[] documents = { DocumentTypes.Lock, DocumentTypes.Job, DocumentTypes.List, DocumentTypes.Set, DocumentTypes.Hash, DocumentTypes.Counter };
         private readonly CouchbaseStorage storage;
@@ -31,14 +31,15 @@ namespace Hangfire.Couchbase
 
         public void Execute(CancellationToken cancellationToken)
         {
-            using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
+            using (new CouchbaseDistributedLock(DISTRIBUTED_LOCK_KEY, defaultLockTimeout, storage))
             {
-                BucketContext context = new BucketContext(bucket);
-                foreach (DocumentTypes type in documents)
+                using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    using (new CouchbaseDistributedLock(DISTRIBUTED_LOCK_KEY, defaultLockTimeout, storage))
+                    BucketContext context = new BucketContext(bucket);
+                    foreach (DocumentTypes type in documents)
                     {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        
                         logger.Trace($"Removing outdated records from the '{type}' document.");
 
                         IQueryable<DocumentBase> query;

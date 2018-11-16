@@ -1,9 +1,7 @@
 ﻿using System;
-using System.Linq;
 
 using Couchbase;
 using Couchbase.Core;
-using Couchbase.Linq;
 
 using Hangfire.Logging;
 using Hangfire.Couchbase.Helper;
@@ -44,19 +42,41 @@ namespace Hangfire.Couchbase
             System.Diagnostics.Stopwatch acquireStart = new System.Diagnostics.Stopwatch();
             acquireStart.Start();
 
-            BucketContext context = new BucketContext(bucket);
+            string id = $"{resource}:{DocumentTypes.Lock}".GenerateHash();
 
             while (string.IsNullOrEmpty(resourceId))
             {
-                int expireOn = DateTime.UtcNow.ToEpoch();
-                bool exists = context.Query<Lock>().Any(l => l.DocumentType == DocumentTypes.Lock && l.Name == resource && l.ExpireOn.HasValue && l.ExpireOn > expireOn);
-                if (exists == false)
-                {
-                    Lock @lock = new Lock { Name = resource, ExpireOn = DateTime.UtcNow.Add(timeout).ToEpoch() };
-                    IOperationResult<Lock> result = bucket.Insert(@lock.Id, @lock);
+                // default ttl for lock document
+                TimeSpan ttl = DateTime.UtcNow.Add(timeout).AddMinutes(1).TimeOfDay;
 
-                    logger.Trace($"Acquired lock for {resource} in {acquireStart.Elapsed.TotalSeconds} seconds");
-                    if (result.Success) resourceId = result.Id;
+                // read the document
+                IDocumentResult<Lock> document = bucket.GetDocument<Lock>(id);
+                
+                // false means the document does not exists got ahead and create
+                if (document.Success == false)
+                {
+                    Lock @lock = new Lock
+                    {
+                        Id = id,
+                        Name = resource,
+                        ExpireOn = DateTime.UtcNow.Add(timeout).ToEpoch()
+                    };
+
+                    IOperationResult<Lock> result = bucket.Insert(@lock.Id, @lock, ttl);
+                    if (result.Success) { resourceId = id; }
+                }
+                else
+                {
+                    if (document.Content.ExpireOn < DateTime.UtcNow.ToEpoch())
+                    {
+                        IDocumentFragment<Lock> result = bucket.MutateIn<Lock>(id)
+                            .WithCas(document.Document.Cas)
+                            .WithExpiry(ttl)
+                            .Upsert(l => l.ExpireOn, DateTime.UtcNow.ToEpoch(), false)
+                            .Execute();
+
+                        if (result.Success) resourceId = id;
+                    }
                 }
 
                 // check the timeout
@@ -69,6 +89,8 @@ namespace Hangfire.Couchbase
                 logger.Trace($"Unable to acquire lock for {resource}. With wait for 2 seconds and retry");
                 System.Threading.Thread.Sleep(2000);
             }
+
+            logger.Trace($"Acquired lock for {resource} in {acquireStart.Elapsed.TotalSeconds} seconds");
         }
     }
 }

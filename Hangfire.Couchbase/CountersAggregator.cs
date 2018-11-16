@@ -20,7 +20,7 @@ namespace Hangfire.Couchbase
 #pragma warning restore 618
     {
         private readonly ILog logger = LogProvider.For<CountersAggregator>();
-        private const string DISTRIBUTED_LOCK_KEY = "locks:countersaggragator";
+        private const string DISTRIBUTED_LOCK_KEY = "locks:counters:aggragator";
         private readonly TimeSpan defaultLockTimeout;
         private readonly CouchbaseStorage storage;
 
