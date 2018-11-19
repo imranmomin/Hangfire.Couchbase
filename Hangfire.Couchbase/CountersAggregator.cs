@@ -97,8 +97,9 @@ namespace Hangfire.Couchbase
                 }
 
                 logger.Trace("Records from the 'Counter' table aggregated.");
-                cancellationToken.WaitHandle.WaitOne(storage.Options.CountersAggregateInterval);
             }
+
+            cancellationToken.WaitHandle.WaitOne(storage.Options.CountersAggregateInterval);
         }
 
         public override string ToString() => GetType().ToString();

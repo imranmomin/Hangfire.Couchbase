@@ -39,7 +39,7 @@ namespace Hangfire.Couchbase
                     foreach (DocumentTypes type in documents)
                     {
                         cancellationToken.ThrowIfCancellationRequested();
-                        
+
                         logger.Trace($"Removing outdated records from the '{type}' document.");
 
                         IQueryable<DocumentBase> query;
@@ -63,10 +63,10 @@ namespace Hangfire.Couchbase
                         bucket.Remove(ids, TimeSpan.FromSeconds(30));
                         logger.Trace($"Outdated records removed {ids.Count} records from the '{type}' document.");
                     }
-
-                    cancellationToken.WaitHandle.WaitOne(storage.Options.ExpirationCheckInterval);
                 }
             }
+
+            cancellationToken.WaitHandle.WaitOne(storage.Options.ExpirationCheckInterval);
         }
     }
 }
