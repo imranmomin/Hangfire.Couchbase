@@ -17,10 +17,10 @@ namespace Hangfire.Couchbase.Queue
     {
         private readonly ILog logger = LogProvider.For<JobQueue>();
         private readonly CouchbaseStorage storage;
-        private const string DISTRIBUTED_LOCK_KEY = "locks:job:dequeue:{0}";
+        private const string DISTRIBUTED_LOCK_KEY = "locks:job:dequeue";
         private readonly TimeSpan defaultLockTimeout;
-        private readonly TimeSpan invisibilityTimeout = TimeSpan.FromMinutes(30);
-        private readonly object syncLock = new object();
+        private readonly TimeSpan invisibilityTimeout = TimeSpan.FromMinutes(15);
+        private static readonly object syncLock = new object();
 
         public JobQueue(CouchbaseStorage storage)
         {
@@ -30,28 +30,21 @@ namespace Hangfire.Couchbase.Queue
 
         public IFetchedJob Dequeue(string[] queues, CancellationToken cancellationToken)
         {
-            int index = 0;
-            while (true)
+            lock (syncLock)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                lock (syncLock)
+                while (true)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     int invisibilityTimeoutEpoch = DateTime.UtcNow.Add(invisibilityTimeout.Negate()).ToEpoch();
-                    string queue = queues.ElementAt(index);
-                    string lockName = string.Format(DISTRIBUTED_LOCK_KEY, queue)
-                        .Replace("  ", "-")
-                        .Replace(" ", "-")
-                        .ToLower();
+                    logger.Trace("Looking for any jobs from the queue");
 
-                    logger.Trace($"Looking for any jobs under '{queue}' queue");
-
-                    using (new CouchbaseDistributedLock(lockName, defaultLockTimeout, storage))
+                    using (new CouchbaseDistributedLock(DISTRIBUTED_LOCK_KEY, defaultLockTimeout, storage))
                     {
                         using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
                         {
                             BucketContext context = new BucketContext(bucket);
                             Documents.Queue data = context.Query<Documents.Queue>()
-                                .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue && (N1QlFunctions.IsMissing(q.FetchedAt) || q.FetchedAt < invisibilityTimeoutEpoch))
+                                .Where(q => q.DocumentType == DocumentTypes.Queue && queues.Contains(q.Name) && (N1QlFunctions.IsMissing(q.FetchedAt) || q.FetchedAt < invisibilityTimeoutEpoch))
                                 .OrderBy(q => q.CreatedOn)
                                 .FirstOrDefault();
 
@@ -61,16 +54,18 @@ namespace Hangfire.Couchbase.Queue
                                     .Upsert(q => q.FetchedAt, DateTime.UtcNow.ToEpoch(), true)
                                     .Execute();
 
-                                if (result.Success) return new FetchedJob(storage, data);
+                                if (result.Success)
+                                {
+                                    logger.Trace($"Found job {data.JobId} from the queue {data.Name}");
+                                    return new FetchedJob(storage, data);
+                                }
                             }
                         }
                     }
 
-                    logger.Trace($"Unable to find any jobs under '{queue}' queue");
+                    logger.Trace($"Unable to find any jobs in the queue. Will check the queue for jobs in {storage.Options.QueuePollInterval.TotalSeconds} seconds");
+                    cancellationToken.WaitHandle.WaitOne(storage.Options.QueuePollInterval);
                 }
-
-                Thread.Sleep(storage.Options.QueuePollInterval);
-                index = (index + 1) % queues.Length;
             }
         }
 
