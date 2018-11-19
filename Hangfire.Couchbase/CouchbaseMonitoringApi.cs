@@ -19,12 +19,12 @@ namespace Hangfire.Couchbase
     internal sealed class CouchbaseMonitoringApi : IMonitoringApi
     {
         private readonly CouchbaseStorage storage;
-        private readonly object cacheLock = new object();
+        private static readonly object cacheLock = new object();
         private static readonly TimeSpan cacheTimeout = TimeSpan.FromSeconds(2);
 
-        private DateTime cacheUpdated;
-        private StatisticsDto cacheStatisticsDto;
-        
+        private static DateTime cacheUpdated;
+        private static StatisticsDto cacheStatisticsDto;
+
         public CouchbaseMonitoringApi(CouchbaseStorage storage) => this.storage = storage;
 
         public IList<QueueWithTopEnqueuedJobsDto> Queues()
@@ -177,7 +177,7 @@ namespace Hangfire.Couchbase
                         cacheStatisticsDto.Queues = storage.QueueProviders
                             .SelectMany(x => x.GetJobQueueMonitoringApi().GetQueues())
                             .Count();
-                         
+
                         cacheUpdated = DateTime.UtcNow;
                     }
                 }
