@@ -58,7 +58,7 @@ namespace Hangfire.Couchbase.Queue
             {
                 BucketContext context = new BucketContext(bucket);
                 return context.Query<Documents.Queue>()
-                    .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue && N1QlFunctions.IsMissing(q.FetchedAt.HasValue))
+                    .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue && N1QlFunctions.IsMissing(q.FetchedAt))
                     .OrderBy(q => q.CreatedOn)
                     .Skip(from).Take(perPage)
                     .Select(q => q.JobId)

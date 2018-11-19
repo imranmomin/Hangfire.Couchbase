@@ -495,6 +495,7 @@ namespace Hangfire.Couchbase
                 BucketContext context = new BucketContext(bucket);
                 string[] ids = context.Query<List>()
                     .Where(l => l.DocumentType == DocumentTypes.List && l.Key == key)
+                    .OrderByDescending(l => l.CreatedOn)
                     .Select(l => l.Id)
                     .ToArray();
 

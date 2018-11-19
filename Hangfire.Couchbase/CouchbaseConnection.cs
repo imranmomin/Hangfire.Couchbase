@@ -280,8 +280,9 @@ namespace Hangfire.Couchbase
 
             if (server != null)
             {
-                server.LastHeartbeat = DateTime.UtcNow.ToEpoch();
-                bucket.Upsert(server.Id, server);
+                bucket.MutateIn<Documents.Server>(server.Id)
+                    .Upsert(s => s.LastHeartbeat, DateTime.UtcNow.ToEpoch(), false)
+                    .Execute();
             }
         }
 
