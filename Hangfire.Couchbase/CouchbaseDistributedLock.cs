@@ -51,7 +51,7 @@ namespace Hangfire.Couchbase
 
                 // read the document
                 IDocumentResult<Lock> document = bucket.GetDocument<Lock>(id);
-                
+
                 // false means the document does not exists got ahead and create
                 if (document.Success == false)
                 {
@@ -63,19 +63,27 @@ namespace Hangfire.Couchbase
                     };
 
                     IOperationResult<Lock> result = bucket.Insert(@lock.Id, @lock, ttl);
-                    if (result.Success) { resourceId = id; }
+                    if (result.Success)
+                    {
+                        resourceId = id;
+                        break;
+                    }
                 }
-                else
+                else if (document.Content != null)
                 {
                     if (document.Content.ExpireOn < DateTime.UtcNow.ToEpoch())
                     {
                         IDocumentFragment<Lock> result = bucket.MutateIn<Lock>(id)
                             .WithCas(document.Document.Cas)
                             .WithExpiry(ttl)
-                            .Upsert(l => l.ExpireOn, DateTime.UtcNow.ToEpoch(), false)
+                            .Upsert(l => l.ExpireOn, DateTime.UtcNow.Add(timeout).ToEpoch(), false)
                             .Execute();
 
-                        if (result.Success) resourceId = id;
+                        if (result.Success)
+                        {
+                            resourceId = id;
+                            break;
+                        }
                     }
                 }
 
@@ -86,7 +94,7 @@ namespace Hangfire.Couchbase
                 }
 
                 // sleep for 2000 millisecond
-                logger.Trace($"Unable to acquire lock for {resource}. With wait for 2 seconds and retry");
+                logger.Trace($"Unable to acquire lock for {resource}. Will check try after 2 seconds");
                 System.Threading.Thread.Sleep(2000);
             }
 
