@@ -245,59 +245,36 @@ namespace Hangfire.Couchbase
             if (serverId == null) throw new ArgumentNullException(nameof(serverId));
             if (context == null) throw new ArgumentNullException(nameof(context));
 
-            BucketContext bucketContext = new BucketContext(bucket);
-            Documents.Server server = bucketContext.Query<Documents.Server>()
-                .FirstOrDefault(s => s.DocumentType == DocumentTypes.Server && s.ServerId == serverId);
-
-            if (server == null)
+            string id = $"{serverId}:{DocumentTypes.Server}".GenerateHash();
+            Documents.Server server = new Documents.Server
             {
-                server = new Documents.Server
-                {
-                    ServerId = serverId,
-                    Workers = context.WorkerCount,
-                    Queues = context.Queues,
-                    CreatedOn = DateTime.UtcNow,
-                    LastHeartbeat = DateTime.UtcNow.ToEpoch()
-                };
-            }
-            else
-            {
-                server.Workers = context.WorkerCount;
-                server.Queues = context.Queues;
-                server.LastHeartbeat = DateTime.UtcNow.ToEpoch();
-            }
+                Id = id,
+                ServerId = serverId,
+                Workers = context.WorkerCount,
+                Queues = context.Queues,
+                CreatedOn = DateTime.UtcNow,
+                LastHeartbeat = DateTime.UtcNow.ToEpoch()
+            };
 
-            bucket.Upsert(server.Id, server);
+            bucket.Upsert(id, server);
         }
 
         public override void Heartbeat(string serverId)
         {
             if (serverId == null) throw new ArgumentNullException(nameof(serverId));
 
-            BucketContext context = new BucketContext(bucket);
-            Documents.Server server = context.Query<Documents.Server>()
-                .FirstOrDefault(s => s.DocumentType == DocumentTypes.Server && s.ServerId == serverId);
-
-            if (server != null)
-            {
-                bucket.MutateIn<Documents.Server>(server.Id)
+            string id = $"{serverId}:{DocumentTypes.Server}".GenerateHash();
+            bucket.MutateIn<Documents.Server>(id)
                     .Upsert(s => s.LastHeartbeat, DateTime.UtcNow.ToEpoch(), false)
                     .Execute();
-            }
+             
         }
 
         public override void RemoveServer(string serverId)
         {
             if (serverId == null) throw new ArgumentNullException(nameof(serverId));
-
-            BucketContext context = new BucketContext(bucket);
-            Documents.Server server = context.Query<Documents.Server>()
-                .FirstOrDefault(s => s.DocumentType == DocumentTypes.Server && s.ServerId == serverId);
-
-            if (server != null)
-            {
-                bucket.Remove(server.Id);
-            }
+            string id = $"{serverId}:{DocumentTypes.Server}".GenerateHash();
+            bucket.Remove(id);
         }
 
         public override int RemoveTimedOutServers(TimeSpan timeOut)
