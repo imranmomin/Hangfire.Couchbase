@@ -178,15 +178,16 @@ namespace Hangfire.Couchbase
         {
             if (key == null) throw new ArgumentNullException(nameof(key));
 
+            endingAt += 1 - startingFrom;
+
             BucketContext context = new BucketContext(bucket);
             return context.Query<Set>()
                 .Where(s => s.DocumentType == DocumentTypes.Set && s.Key == key)
                 .OrderBy(s => s.Score)
                 .ThenBy(s => s.CreatedOn)
-                .AsEnumerable()
-                .Select((s, i) => new { s.Value, Index = i })
-                .Where(s => s.Index >= startingFrom && s.Index <= endingAt)
                 .Select(s => s.Value)
+                .Skip(startingFrom)
+                .Take(endingAt)
                 .ToList();
         }
 
@@ -267,12 +268,12 @@ namespace Hangfire.Couchbase
             bucket.MutateIn<Documents.Server>(id)
                     .Upsert(s => s.LastHeartbeat, DateTime.UtcNow.ToEpoch(), false)
                     .Execute();
-             
         }
 
         public override void RemoveServer(string serverId)
         {
             if (serverId == null) throw new ArgumentNullException(nameof(serverId));
+
             string id = $"{serverId}:{DocumentTypes.Server}".GenerateHash();
             bucket.Remove(id);
         }
@@ -396,14 +397,15 @@ namespace Hangfire.Couchbase
         {
             if (key == null) throw new ArgumentNullException(nameof(key));
 
+            endingAt += 1 - startingFrom;
+
             BucketContext context = new BucketContext(bucket);
             return context.Query<List>()
                 .Where(l => l.DocumentType == DocumentTypes.List && l.Key == key)
                 .OrderByDescending(l => l.CreatedOn)
-                .AsEnumerable()
-                .Select((l, i) => new { l.Value, Index = i })
-                .Where(l => l.Index >= startingFrom && l.Index <= endingAt)
                 .Select(l => l.Value)
+                .Skip(startingFrom)
+                .Take(endingAt)
                 .ToList();
         }
 
