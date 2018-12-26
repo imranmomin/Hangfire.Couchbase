@@ -5,7 +5,7 @@
     <Title>Hangfire.Couchbase</Title>
     <Company>Hangfire.Couchbase</Company>
     <Authors>Imran Momin</Authors>
-    <PackageLicenseUrl>https://github.com/imranmomin/Hangfire.Couchbase/blob/master/LICENSE</PackageLicenseUrl>
+    <PackageLicense>https://github.com/imranmomin/Hangfire.Couchbase/blob/master/LICENSE</PackageLicense>
     <PackageProjectUrl>https://github.com/imranmomin/Hangfire.Couchbase</PackageProjectUrl>
     <Copyright>Copyright 2018</Copyright>
     <PackageTags>Hangfire Couchbase</PackageTags>
