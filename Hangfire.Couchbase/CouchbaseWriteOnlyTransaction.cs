@@ -383,7 +383,7 @@ namespace Hangfire.Couchbase
                 BucketContext context = new BucketContext(bucket);
                 IQueryable<Hash> hashes = context.Query<Hash>()
                     .Where(h => h.DocumentType == DocumentTypes.Hash && h.Key == key);
-                    
+
                 foreach (Hash source in sources)
                 {
                     var hash = hashes.SingleOrDefault(h => h.Field == source.Field);
@@ -492,21 +492,18 @@ namespace Hangfire.Couchbase
 
             QueueCommand(() =>
             {
+                keepEndingAt += 1 - keepStartingFrom;
+
                 BucketContext context = new BucketContext(bucket);
                 string[] ids = context.Query<List>()
                     .Where(l => l.DocumentType == DocumentTypes.List && l.Key == key)
                     .OrderByDescending(l => l.CreatedOn)
+                    .Skip(keepStartingFrom)
+                    .Take(keepEndingAt)
                     .Select(l => l.Id)
                     .ToArray();
 
-                for (int index = 0; index < ids.Length; index++)
-                {
-                    if (index < keepStartingFrom || index > keepEndingAt)
-                    {
-                        string id = ids.ElementAt(index);
-                        bucket.Remove(id);
-                    }
-                }
+                bucket.Remove(ids, TimeSpan.FromSeconds(30));
             });
         }
 

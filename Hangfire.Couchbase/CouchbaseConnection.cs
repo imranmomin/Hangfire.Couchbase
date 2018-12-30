@@ -178,15 +178,15 @@ namespace Hangfire.Couchbase
         {
             if (key == null) throw new ArgumentNullException(nameof(key));
 
+            endingAt += 1 - startingFrom;
+
             BucketContext context = new BucketContext(bucket);
             return context.Query<Set>()
                 .Where(s => s.DocumentType == DocumentTypes.Set && s.Key == key)
-                .OrderBy(s => s.Score)
-                .ThenBy(s => s.CreatedOn)
-                .AsEnumerable()
-                .Select((s, i) => new { s.Value, Index = i })
-                .Where(s => s.Index >= startingFrom && s.Index <= endingAt)
+                .OrderBy(s => s.CreatedOn)
                 .Select(s => s.Value)
+                .Skip(startingFrom)
+                .Take(endingAt)
                 .ToList();
         }
 
@@ -245,59 +245,36 @@ namespace Hangfire.Couchbase
             if (serverId == null) throw new ArgumentNullException(nameof(serverId));
             if (context == null) throw new ArgumentNullException(nameof(context));
 
-            BucketContext bucketContext = new BucketContext(bucket);
-            Documents.Server server = bucketContext.Query<Documents.Server>()
-                .FirstOrDefault(s => s.DocumentType == DocumentTypes.Server && s.ServerId == serverId);
-
-            if (server == null)
+            string id = $"{serverId}:{DocumentTypes.Server}".GenerateHash();
+            Documents.Server server = new Documents.Server
             {
-                server = new Documents.Server
-                {
-                    ServerId = serverId,
-                    Workers = context.WorkerCount,
-                    Queues = context.Queues,
-                    CreatedOn = DateTime.UtcNow,
-                    LastHeartbeat = DateTime.UtcNow.ToEpoch()
-                };
-            }
-            else
-            {
-                server.Workers = context.WorkerCount;
-                server.Queues = context.Queues;
-                server.LastHeartbeat = DateTime.UtcNow.ToEpoch();
-            }
+                Id = id,
+                ServerId = serverId,
+                Workers = context.WorkerCount,
+                Queues = context.Queues,
+                CreatedOn = DateTime.UtcNow,
+                LastHeartbeat = DateTime.UtcNow.ToEpoch()
+            };
 
-            bucket.Upsert(server.Id, server);
+            bucket.Upsert(id, server);
         }
 
         public override void Heartbeat(string serverId)
         {
             if (serverId == null) throw new ArgumentNullException(nameof(serverId));
 
-            BucketContext context = new BucketContext(bucket);
-            Documents.Server server = context.Query<Documents.Server>()
-                .FirstOrDefault(s => s.DocumentType == DocumentTypes.Server && s.ServerId == serverId);
-
-            if (server != null)
-            {
-                bucket.MutateIn<Documents.Server>(server.Id)
+            string id = $"{serverId}:{DocumentTypes.Server}".GenerateHash();
+            bucket.MutateIn<Documents.Server>(id)
                     .Upsert(s => s.LastHeartbeat, DateTime.UtcNow.ToEpoch(), false)
                     .Execute();
-            }
         }
 
         public override void RemoveServer(string serverId)
         {
             if (serverId == null) throw new ArgumentNullException(nameof(serverId));
 
-            BucketContext context = new BucketContext(bucket);
-            Documents.Server server = context.Query<Documents.Server>()
-                .FirstOrDefault(s => s.DocumentType == DocumentTypes.Server && s.ServerId == serverId);
-
-            if (server != null)
-            {
-                bucket.Remove(server.Id);
-            }
+            string id = $"{serverId}:{DocumentTypes.Server}".GenerateHash();
+            bucket.Remove(id);
         }
 
         public override int RemoveTimedOutServers(TimeSpan timeOut)
@@ -419,14 +396,15 @@ namespace Hangfire.Couchbase
         {
             if (key == null) throw new ArgumentNullException(nameof(key));
 
+            endingAt += 1 - startingFrom;
+
             BucketContext context = new BucketContext(bucket);
             return context.Query<List>()
                 .Where(l => l.DocumentType == DocumentTypes.List && l.Key == key)
                 .OrderByDescending(l => l.CreatedOn)
-                .AsEnumerable()
-                .Select((l, i) => new { l.Value, Index = i })
-                .Where(l => l.Index >= startingFrom && l.Index <= endingAt)
                 .Select(l => l.Value)
+                .Skip(startingFrom)
+                .Take(endingAt)
                 .ToList();
         }
 
