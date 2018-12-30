@@ -183,8 +183,7 @@ namespace Hangfire.Couchbase
             BucketContext context = new BucketContext(bucket);
             return context.Query<Set>()
                 .Where(s => s.DocumentType == DocumentTypes.Set && s.Key == key)
-                .OrderBy(s => s.Score)
-                .ThenBy(s => s.CreatedOn)
+                .OrderBy(s => s.CreatedOn)
                 .Select(s => s.Value)
                 .Skip(startingFrom)
                 .Take(endingAt)
