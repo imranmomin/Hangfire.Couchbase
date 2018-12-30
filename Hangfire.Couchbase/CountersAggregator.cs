@@ -45,8 +45,8 @@ namespace Hangfire.Couchbase
                         .Where(c => c.DocumentType == DocumentTypes.Counter && c.Type == CounterTypes.Raw)
                         .ToList();
 
-                    Dictionary<string, (int Value, int? ExpireOn)> counters = rawCounters.GroupBy(c => c.Key)
-                        .ToDictionary(k => k.Key, v => (Value: v.Sum(c => c.Value), ExpireOn: v.Max(c => c.ExpireOn)));
+                    Dictionary<string, (int Value, int? ExpireOn, List<Counter> Counters)> counters = rawCounters.GroupBy(c => c.Key)
+                        .ToDictionary(k => k.Key, v => (Value: v.Sum(c => c.Value), ExpireOn: v.Max(c => c.ExpireOn), Counters: v.ToList()));
 
                     foreach (string key in counters.Keys)
                     {
@@ -84,8 +84,7 @@ namespace Hangfire.Couchbase
                             IOperationResult<Counter> result = bucket.Upsert(aggregated.Id, aggregated);
                             if (result.Success)
                             {
-                                IList<string> ids = rawCounters
-                                    .Where(counter => counter.Key == key)
+                                IList<string> ids = data.Counters
                                     .Select(counter => counter.Id)
                                     .ToList();
 
