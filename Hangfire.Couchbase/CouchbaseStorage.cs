@@ -130,7 +130,6 @@ namespace Hangfire.Couchbase
 #pragma warning restore 618
         {
             yield return new ExpirationManager(this);
-            yield return new CountersAggregator(this);
         }
 
         /// <summary>

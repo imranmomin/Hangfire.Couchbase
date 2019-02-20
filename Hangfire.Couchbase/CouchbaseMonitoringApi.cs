@@ -408,7 +408,7 @@ namespace Hangfire.Couchbase
                 endDate = endDate.AddHours(-1);
             }
 
-            Dictionary<string, DateTime> keys = dates.ToDictionary(x => $"stats:{type}:{x:yyyy-MM-dd-HH}", x => x);
+            Dictionary<string, DateTime> keys = dates.ToDictionary(x => $"{type}:{x:yyyy-MM-dd-HH}:counter".GenerateHash(), x => x);
             return GetTimelineStats(keys);
         }
 
@@ -422,33 +422,26 @@ namespace Hangfire.Couchbase
                 endDate = endDate.AddDays(-1);
             }
 
-            Dictionary<string, DateTime> keys = dates.ToDictionary(x => $"stats:{type}:{x:yyyy-MM-dd}", x => x);
+            Dictionary<string, DateTime> keys = dates.ToDictionary(x => $"{type}:{x:yyyy-MM-dd}:counter".GenerateHash(), x => x);
             return GetTimelineStats(keys);
         }
 
         private Dictionary<DateTime, long> GetTimelineStats(Dictionary<string, DateTime> keys)
         {
-            Dictionary<DateTime, long> result = keys.ToDictionary(k => k.Value, v => default(long));
-            Dictionary<string, int> data;
+            Dictionary<DateTime, long> data = keys.ToDictionary(k => k.Value, v => default(long));
 
             using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
             {
-                BucketContext context = new BucketContext(bucket);
-                data = context.Query<Counter>()
-                    .Where(c => c.Type == CounterTypes.Aggregate && c.DocumentType == DocumentTypes.Counter)
-                    .AsEnumerable()
-                    .Where(c => keys.ContainsKey(c.Key))
-                    .GroupBy(c => c.Key)
-                    .ToDictionary(k => k.Key, k => k.Sum(c => c.Value));
+                IDictionary<string, IOperationResult<ulong>> results = bucket.Get<ulong>(keys.Keys.ToList(), TimeSpan.FromMinutes(1));
+                foreach (string key in keys.Keys)
+                {
+                    DateTime date = keys.Where(k => k.Key == key).Select(k => k.Value).Single();
+                    IOperationResult<ulong> result = results.Where(k => k.Key == key).Select(k => k.Value).Single();
+                    data[date] = result.Success ? (long)result.Value : default(long);
+                }
             }
 
-            foreach (string key in keys.Keys)
-            {
-                DateTime date = keys.Where(k => k.Key == key).Select(k => k.Value).First();
-                result[date] = data.ContainsKey(key) ? data[key] : 0;
-            }
-
-            return result;
+            return data;
         }
 
         #endregion
