@@ -11,6 +11,9 @@ namespace Hangfire.Couchbase.Documents
 {
     internal class Job : DocumentBase
     {
+        [JsonProperty("id")]
+        public new ulong Id { get; set; }
+
         [JsonProperty("data")]
         public InvocationData InvocationData { get; set; }
 

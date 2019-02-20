@@ -302,7 +302,7 @@ namespace Hangfire.Couchbase
 
                 List<Documents.Job> filterJobs = context.Query<Documents.Job>()
                     .Where(j => j.DocumentType == DocumentTypes.Job && j.StateName == stateName)
-                    .OrderByDescending(j => j.CreatedOn)
+                    .OrderByDescending(j => j.Id)
                     .Skip(from).Take(count)
                     .ToList();
 
@@ -315,7 +315,7 @@ namespace Hangfire.Couchbase
                         invocationData.Arguments = job.Arguments;
 
                         T data = selector(result.Content, invocationData.Deserialize());
-                        jobs.Add(new KeyValuePair<string, T>(job.Id, data));
+                        jobs.Add(new KeyValuePair<string, T>(job.Id.ToString(), data));
                     }
                 });
             }
@@ -338,7 +338,7 @@ namespace Hangfire.Couchbase
                     IDocumentResult<State> stateResult = bucket.GetDocument<State>(job.StateId);
 
                     T data = selector(stateResult.Content, invocationData.Deserialize(), queueItem.FetchedAt);
-                    jobs.Add(new KeyValuePair<string, T>(job.Id, data));
+                    jobs.Add(new KeyValuePair<string, T>(job.Id.ToString(), data));
                 }
             });
 
