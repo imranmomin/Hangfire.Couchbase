@@ -43,9 +43,14 @@ namespace Hangfire.Couchbase
             if (job == null) throw new ArgumentNullException(nameof(job));
             if (parameters == null) throw new ArgumentNullException(nameof(parameters));
 
+            IOperationResult<ulong> sequence = bucket.Increment("jobs:id", 1, 1);
+            if (sequence.Success == false) throw new InvalidOperationException("Unable to increment the jobs:id counter", sequence.Exception);
+            ulong id = sequence.Value;
+
             InvocationData invocationData = InvocationData.Serialize(job);
             Documents.Job entityJob = new Documents.Job
             {
+                Id = id,
                 InvocationData = invocationData,
                 Arguments = invocationData.Arguments,
                 CreatedOn = createdAt,
@@ -53,8 +58,8 @@ namespace Hangfire.Couchbase
                 Parameters = parameters
             };
 
-            IOperationResult<Documents.Job> response = bucket.Insert(entityJob.Id, entityJob);
-            if (response.Success) return entityJob.Id;
+            IOperationResult<Documents.Job> response = bucket.Insert(id.ToString(), entityJob);
+            if (response.Success) return id.ToString();
 
             return string.Empty;
         }
@@ -118,9 +123,10 @@ namespace Hangfire.Couchbase
 
             BucketContext context = new BucketContext(bucket);
             IQueryable<State> states = context.Query<State>().Where(s => s.DocumentType == DocumentTypes.State && s.JobId == jobId);
+            ulong id = Convert.ToUInt64(jobId);
 
             StateData stateData = context.Query<Documents.Job>()
-                .Where(j => j.Id == jobId)
+                .Where(j => j.Id == id)
                 .Join(states, job => job.StateId, s => N1QlFunctions.Key(s), (job, s) => new StateData
                 {
                     Name = s.Name,
