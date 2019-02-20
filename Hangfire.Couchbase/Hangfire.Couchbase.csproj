@@ -29,16 +29,17 @@
     <DocumentationFile>bin\Release\netstandard2.0\Hangfire.Couchbase.xml</DocumentationFile>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="CouchbaseNetClient" Version="2.7.0" />
-    <PackageReference Include="Hangfire.Core" Version="1.6.21" />
+    <PackageReference Include="CouchbaseNetClient" Version="2.7.4" />
+    <PackageReference Include="Hangfire.Core" Version="1.6.22" />
     <PackageReference Include="Linq2Couchbase" Version="1.4.0" />
-    <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="2.2.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="12.0.1" />
     <PackageReference Include="System.ValueTuple" Version="4.5.0" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Properties\" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" version="2.1.1" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" version="2.2.0" />
   </ItemGroup>
 </Project>
