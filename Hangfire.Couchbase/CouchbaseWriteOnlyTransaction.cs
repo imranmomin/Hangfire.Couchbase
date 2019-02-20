@@ -53,14 +53,8 @@ namespace Hangfire.Couchbase
 
             QueueCommand(() =>
             {
-                Counter data = new Counter
-                {
-                    Key = key,
-                    Type = CounterTypes.Raw,
-                    Value = -1
-                };
-
-                bucket.Insert(data.Id, data);
+                string id = $"{key}:counter".GenerateHash();
+                bucket.Decrement(id, 1, 0);
             });
         }
 
@@ -71,15 +65,8 @@ namespace Hangfire.Couchbase
 
             QueueCommand(() =>
             {
-                Counter data = new Counter
-                {
-                    Key = key,
-                    Type = CounterTypes.Raw,
-                    Value = -1,
-                    ExpireOn = DateTime.UtcNow.Add(expireIn).ToEpoch()
-                };
-
-                bucket.Insert(data.Id, data);
+                string id = $"{key}:counter".GenerateHash();
+                bucket.Decrement(id, 1, 0, expireIn);
             });
         }
 
@@ -89,14 +76,8 @@ namespace Hangfire.Couchbase
 
             QueueCommand(() =>
             {
-                Counter data = new Counter
-                {
-                    Key = key,
-                    Type = CounterTypes.Raw,
-                    Value = 1
-                };
-
-                bucket.Insert(data.Id, data);
+                string id = $"{key}:counter".GenerateHash();
+                bucket.Increment(id, 1, 1);
             });
         }
 
@@ -107,15 +88,8 @@ namespace Hangfire.Couchbase
 
             QueueCommand(() =>
             {
-                Counter data = new Counter
-                {
-                    Key = key,
-                    Type = CounterTypes.Raw,
-                    Value = 1,
-                    ExpireOn = DateTime.UtcNow.Add(expireIn).ToEpoch()
-                };
-
-                bucket.Insert(data.Id, data);
+                string id = $"{key}:counter".GenerateHash();
+                bucket.Increment(id, 1, 1, expireIn);
             });
         }
 
