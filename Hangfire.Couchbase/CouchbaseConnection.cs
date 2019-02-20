@@ -58,7 +58,7 @@ namespace Hangfire.Couchbase
                 Parameters = parameters
             };
 
-            IOperationResult<Documents.Job> response = bucket.Insert(id.ToString(), entityJob);
+            IOperationResult<Documents.Job> response = bucket.Insert($"job:{id}", entityJob);
             if (response.Success) return id.ToString();
 
             return string.Empty;
@@ -86,7 +86,7 @@ namespace Hangfire.Couchbase
         {
             if (jobId == null) throw new ArgumentNullException(nameof(jobId));
 
-            IDocumentResult<Documents.Job> result = bucket.GetDocument<Documents.Job>(jobId);
+            IDocumentResult<Documents.Job> result = bucket.GetDocument<Documents.Job>($"job:{jobId}");
             if (result.Success && result.Content != null)
             {
                 Documents.Job data = result.Content;
@@ -120,9 +120,12 @@ namespace Hangfire.Couchbase
         public override StateData GetStateData(string jobId)
         {
             if (jobId == null) throw new ArgumentNullException(nameof(jobId));
+            
+            // ReSharper disable once InconsistentNaming
+            ulong job_id = Convert.ToUInt64(jobId);
 
             BucketContext context = new BucketContext(bucket);
-            IQueryable<State> states = context.Query<State>().Where(s => s.DocumentType == DocumentTypes.State && s.JobId == jobId);
+            IQueryable<State> states = context.Query<State>().Where(s => s.DocumentType == DocumentTypes.State && s.JobId == job_id);
             ulong id = Convert.ToUInt64(jobId);
 
             StateData stateData = context.Query<Documents.Job>()
@@ -147,7 +150,7 @@ namespace Hangfire.Couchbase
             if (id == null) throw new ArgumentNullException(nameof(id));
             if (name == null) throw new ArgumentNullException(nameof(name));
 
-            IDocumentFragment<Documents.Job> result = bucket.LookupIn<Documents.Job>(id)
+            IDocumentFragment<Documents.Job> result = bucket.LookupIn<Documents.Job>($"job:{id}")
                 .Get($"parameters.{name}")
                 .Execute();
 
@@ -159,7 +162,7 @@ namespace Hangfire.Couchbase
             if (id == null) throw new ArgumentNullException(nameof(id));
             if (name == null) throw new ArgumentNullException(nameof(name));
 
-            bucket.MutateIn<Documents.Job>(id)
+            bucket.MutateIn<Documents.Job>($"job:{id}")
                 .Upsert($"parameters.{name}", value)
                 .Execute();
         }
@@ -190,6 +193,7 @@ namespace Hangfire.Couchbase
             return context.Query<Set>()
                 .Where(s => s.DocumentType == DocumentTypes.Set && s.Key == key)
                 .OrderBy(s => s.CreatedOn)
+                .ThenBy(s => s.Value)
                 .Select(s => s.Value)
                 .Skip(startingFrom)
                 .Take(endingAt)

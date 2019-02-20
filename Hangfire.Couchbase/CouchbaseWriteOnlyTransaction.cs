@@ -53,7 +53,7 @@ namespace Hangfire.Couchbase
 
             QueueCommand(() =>
             {
-                string id = $"{key}:counter".GenerateHash();
+                string id = $"{key}:COUNTER".ToUpperInvariant();
                 bucket.Decrement(id, 1, 0);
             });
         }
@@ -65,7 +65,7 @@ namespace Hangfire.Couchbase
 
             QueueCommand(() =>
             {
-                string id = $"{key}:counter".GenerateHash();
+                string id = $"{key}:COUNTER".ToUpperInvariant();
                 bucket.Decrement(id, 1, 0, expireIn);
             });
         }
@@ -76,7 +76,7 @@ namespace Hangfire.Couchbase
 
             QueueCommand(() =>
             {
-                string id = $"{key}:counter".GenerateHash();
+                string id = $"{key}:COUNTER".ToUpperInvariant();
                 bucket.Increment(id, 1, 1);
             });
         }
@@ -88,7 +88,7 @@ namespace Hangfire.Couchbase
 
             QueueCommand(() =>
             {
-                string id = $"{key}:counter".GenerateHash();
+                string id = $"{key}:COUNTER".ToUpperInvariant();
                 bucket.Increment(id, 1, 1, expireIn);
             });
         }
@@ -105,7 +105,7 @@ namespace Hangfire.Couchbase
             QueueCommand(() =>
             {
                 int epoch = DateTime.UtcNow.Add(expireIn).ToEpoch();
-                bucket.MutateIn<Job>(jobId)
+                bucket.MutateIn<Job>($"job:{jobId}")
                     .Upsert(j => j.ExpireOn, epoch, true)
                     .Execute();
             });
@@ -117,7 +117,7 @@ namespace Hangfire.Couchbase
 
             QueueCommand(() =>
             {
-                bucket.MutateIn<Job>(jobId)
+                bucket.MutateIn<Job>($"job:{jobId}")
                      .Remove(j => j.ExpireOn)
                      .Execute();
             });
@@ -134,9 +134,12 @@ namespace Hangfire.Couchbase
 
             QueueCommand(() =>
             {
+                // ReSharper disable once InconsistentNaming
+                ulong job_id = Convert.ToUInt64(jobId);
+
                 State data = new State
                 {
-                    JobId = jobId,
+                    JobId = job_id,
                     Name = state.Name,
                     Reason = state.Reason,
                     CreatedOn = DateTime.UtcNow,
@@ -146,7 +149,7 @@ namespace Hangfire.Couchbase
                 IOperationResult stateResult = bucket.Insert(data.Id, data);
                 if (stateResult.Success)
                 {
-                    bucket.MutateIn<Job>(jobId)
+                    bucket.MutateIn<Job>($"job:{jobId}")
                         .Upsert(j => j.StateId, data.Id, true)
                         .Upsert(j => j.StateName, data.Name, true)
                         .Execute();
@@ -161,9 +164,12 @@ namespace Hangfire.Couchbase
 
             QueueCommand(() =>
             {
+                // ReSharper disable once InconsistentNaming
+                ulong job_id = Convert.ToUInt64(jobId);
+
                 State data = new State
                 {
-                    JobId = jobId,
+                    JobId = job_id,
                     Name = state.Name,
                     Reason = state.Reason,
                     CreatedOn = DateTime.UtcNow,

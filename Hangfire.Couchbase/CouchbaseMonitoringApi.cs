@@ -80,7 +80,7 @@ namespace Hangfire.Couchbase
 
             using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
             {
-                IDocumentResult<Documents.Job> result = bucket.GetDocument<Documents.Job>(jobId);
+                IDocumentResult<Documents.Job> result = bucket.GetDocument<Documents.Job>($"job:{jobId}");
                 if (result.Success && result.Content != null)
                 {
                     Documents.Job job = result.Content;
@@ -89,7 +89,7 @@ namespace Hangfire.Couchbase
 
                     BucketContext context = new BucketContext(bucket);
                     List<StateHistoryDto> states = context.Query<State>()
-                        .Where(s => s.DocumentType == DocumentTypes.State && s.JobId == jobId)
+                        .Where(s => s.DocumentType == DocumentTypes.State && s.JobId == job.Id)
                         .OrderByDescending(s => s.CreatedOn)
                         .AsEnumerable()
                         .Select(s => new StateHistoryDto
@@ -132,7 +132,7 @@ namespace Hangfire.Couchbase
                             .Where(j => j.DocumentType == DocumentTypes.Job && N1QlFunctions.IsValued(j.StateName))
                             .GroupBy(j => j.StateName)
                             .Select(j => new { j.Key, Count = j.LongCount() })
-                            .ToDictionary(g => g.Key, g => g.Count);
+                            .ToDictionary(g => g.Key.ToUpperInvariant(), g => g.Count);
 
                         results = results.Concat(states).ToDictionary(k => k.Key, v => v.Value);
 
@@ -141,37 +141,34 @@ namespace Hangfire.Couchbase
                             .Where(s => s.DocumentType == DocumentTypes.Server)
                             .LongCount();
 
-                        results.Add("Servers", servers);
+                        results.Add("SERVERS", servers);
 
                         // get sum of stats:succeeded counters  raw / aggregate
-                        Dictionary<string, long> counters = context.Query<Counter>()
-                            .Where(c => c.DocumentType == DocumentTypes.Counter && (c.Key == "stats:succeeded" || c.Key == "stats:deleted"))
-                            .GroupBy(c => c.Key)
-                            .Select(c => new { c.Key, Sum = c.Sum(x => x.Value) })
-                            .ToDictionary(g => g.Key, g => (long)g.Sum);
-
-                        results = results.Concat(counters).ToDictionary(k => k.Key, v => v.Value);
+                        List<string> keys = new List<string> { "STATS:SUCCEEDED:COUNTER", "STATS:DELETED:COUNTER" };
+                        IDictionary<string, IOperationResult<string>> counters = bucket.Get<string>(keys, TimeSpan.FromMinutes(1));
+                        Dictionary<string, long> temp = counters.Where(k => k.Value.Success).ToDictionary(k => k.Key, v => Convert.ToInt64(v.Value.Value));
+                        results = results.Concat(temp).ToDictionary(k => k.Key, v => v.Value);
 
                         // get recurring-jobs counts
                         long count = context.Query<Set>()
                             .Where(s => s.DocumentType == DocumentTypes.Set && s.Key == "recurring-jobs")
                             .LongCount();
 
-                        results.Add("recurring-jobs", count);
+                        results.Add("RECURRING-JOBS", count);
 
-                        long GetValueOrDefault(string key) => results.Where(r => r.Key == key).Select(r => r.Value).SingleOrDefault();
+                        long getValueOrDefault(string key) => results.Where(r => r.Key == key).Select(r => r.Value).SingleOrDefault();
 
                         // ReSharper disable once UseObjectOrCollectionInitializer
                         cacheStatisticsDto = new StatisticsDto
                         {
-                            Enqueued = GetValueOrDefault("Enqueued"),
-                            Failed = GetValueOrDefault("Failed"),
-                            Processing = GetValueOrDefault("Processing"),
-                            Scheduled = GetValueOrDefault("Scheduled"),
-                            Succeeded = GetValueOrDefault("stats:succeeded"),
-                            Deleted = GetValueOrDefault("stats:deleted"),
-                            Recurring = GetValueOrDefault("recurring-jobs"),
-                            Servers = GetValueOrDefault("Servers"),
+                            Enqueued = getValueOrDefault("ENQUEUED"),
+                            Failed = getValueOrDefault("FAILED"),
+                            Processing = getValueOrDefault("PROCESSING"),
+                            Scheduled = getValueOrDefault("SCHEDULED"),
+                            Succeeded = getValueOrDefault("STATS:SUCCEEDED:COUNTER"),
+                            Deleted = getValueOrDefault("STATS:DELETED:COUNTER"),
+                            Recurring = getValueOrDefault("RECURRING-JOBS"),
+                            Servers = getValueOrDefault("SERVERS")
                         };
 
                         cacheStatisticsDto.Queues = storage.QueueProviders
@@ -278,7 +275,7 @@ namespace Hangfire.Couchbase
                 FailedAt = JobHelper.DeserializeNullableDateTime(state.Data["FailedAt"]),
                 ExceptionDetails = state.Data["ExceptionDetails"],
                 ExceptionMessage = state.Data["ExceptionMessage"],
-                ExceptionType = state.Data["ExceptionType"],
+                ExceptionType = state.Data["ExceptionType"]
             });
         }
 
@@ -328,7 +325,7 @@ namespace Hangfire.Couchbase
             List<KeyValuePair<string, T>> jobs = new List<KeyValuePair<string, T>>();
             queues.ForEach(queueItem =>
             {
-                IDocumentResult<Documents.Job> result = bucket.GetDocument<Documents.Job>(queueItem.JobId);
+                IDocumentResult<Documents.Job> result = bucket.GetDocument<Documents.Job>($"job:{queueItem.JobId}");
                 if (result.Success && result.Content != null)
                 {
                     Documents.Job job = result.Content;
@@ -408,7 +405,7 @@ namespace Hangfire.Couchbase
                 endDate = endDate.AddHours(-1);
             }
 
-            Dictionary<string, DateTime> keys = dates.ToDictionary(x => $"{type}:{x:yyyy-MM-dd-HH}:counter".GenerateHash(), x => x);
+            Dictionary<string, DateTime> keys = dates.ToDictionary(x => $"stats:{type}:{x:yyyy-MM-dd-HH}:COUNTER".ToUpperInvariant(), x => x);
             return GetTimelineStats(keys);
         }
 
@@ -422,7 +419,7 @@ namespace Hangfire.Couchbase
                 endDate = endDate.AddDays(-1);
             }
 
-            Dictionary<string, DateTime> keys = dates.ToDictionary(x => $"{type}:{x:yyyy-MM-dd}:counter".GenerateHash(), x => x);
+            Dictionary<string, DateTime> keys = dates.ToDictionary(x => $"stats:{type}:{x:yyyy-MM-dd}:COUNTER".ToUpperInvariant(), x => x);
             return GetTimelineStats(keys);
         }
 
@@ -432,12 +429,12 @@ namespace Hangfire.Couchbase
 
             using (IBucket bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket))
             {
-                IDictionary<string, IOperationResult<ulong>> results = bucket.Get<ulong>(keys.Keys.ToList(), TimeSpan.FromMinutes(1));
+                IDictionary<string, IOperationResult<string>> results = bucket.Get<string>(keys.Keys.ToList(), TimeSpan.FromMinutes(1));
                 foreach (string key in keys.Keys)
                 {
                     DateTime date = keys.Where(k => k.Key == key).Select(k => k.Value).Single();
-                    IOperationResult<ulong> result = results.Where(k => k.Key == key).Select(k => k.Value).Single();
-                    data[date] = result.Success ? (long)result.Value : default(long);
+                    IOperationResult<string> result = results.Where(k => k.Key == key).Select(k => k.Value).Single();
+                    data[date] = result.Success ? Convert.ToInt64(result.Value) : default(long);
                 }
             }
 
