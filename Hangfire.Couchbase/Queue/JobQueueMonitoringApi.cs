@@ -61,7 +61,7 @@ namespace Hangfire.Couchbase.Queue
                     .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue && N1QlFunctions.IsMissing(q.FetchedAt))
                     .OrderBy(q => q.CreatedOn)
                     .Skip(from).Take(perPage)
-                    .Select(q => q.JobId)
+                    .Select(q => q.JobId.ToString())
                     .AsEnumerable();
             }
         }
@@ -75,7 +75,7 @@ namespace Hangfire.Couchbase.Queue
                     .Where(q => q.DocumentType == DocumentTypes.Queue && q.Name == queue && N1QlFunctions.IsNotMissing(q.FetchedAt))
                     .OrderBy(q => q.CreatedOn)
                     .Skip(from).Take(perPage)
-                    .Select(q => q.JobId)
+                    .Select(q => q.JobId.ToString())
                     .AsEnumerable();
             }
         }

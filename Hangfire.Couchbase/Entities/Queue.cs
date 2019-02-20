@@ -12,7 +12,7 @@ namespace Hangfire.Couchbase.Documents
         public string Name { get; set; }
 
         [JsonProperty("job_id")]
-        public string JobId { get; set; }
+        public ulong JobId { get; set; }
 
         [JsonProperty("created_on")]
         [JsonConverter(typeof(UnixDateTimeConverter))]

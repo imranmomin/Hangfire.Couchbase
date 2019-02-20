@@ -11,7 +11,7 @@ namespace Hangfire.Couchbase.Documents
     internal class State : DocumentBase
     {
         [JsonProperty("job_id")]
-        public string JobId { get; set; }
+        public ulong JobId { get; set; }
 
         [JsonProperty("name")]
         public string Name { get; set; }

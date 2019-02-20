@@ -74,7 +74,7 @@ namespace Hangfire.Couchbase.Queue
             Documents.Queue data = new Documents.Queue
             {
                 Name = queue,
-                JobId = jobId,
+                JobId = Convert.ToUInt64(jobId),
                 CreatedOn = DateTime.UtcNow
             };
 

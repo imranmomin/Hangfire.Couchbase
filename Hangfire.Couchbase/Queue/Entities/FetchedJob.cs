@@ -26,7 +26,7 @@ namespace Hangfire.Couchbase.Queue
             bucket = storage.Client.OpenBucket(storage.Options.DefaultBucket);
 
             Id = data.Id;
-            JobId = data.JobId;
+            JobId = data.JobId.ToString();
 
             TimeSpan keepAliveInterval = TimeSpan.FromMinutes(5);
             timer = new Timer(KeepAliveJobCallback, null, keepAliveInterval, keepAliveInterval);
