@@ -126,10 +126,9 @@ namespace Hangfire.Couchbase
 
             BucketContext context = new BucketContext(bucket);
             IQueryable<State> states = context.Query<State>().Where(s => s.DocumentType == DocumentTypes.State && s.JobId == job_id);
-            ulong id = Convert.ToUInt64(jobId);
-
+            
             StateData stateData = context.Query<Documents.Job>()
-                .Where(j => j.Id == id)
+                .Where(j => j.Id == job_id)
                 .Join(states, job => job.StateId, s => N1QlFunctions.Key(s), (job, s) => new StateData
                 {
                     Name = s.Name,

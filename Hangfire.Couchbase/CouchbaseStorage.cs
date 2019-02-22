@@ -98,11 +98,20 @@ namespace Hangfire.Couchbase
             IBucket bucket = Client.OpenBucket(Options.DefaultBucket);
             {
                 IBucketManager manager = bucket.CreateManager(bucket.Configuration.Username, bucket.Configuration.Password);
-                manager.CreateN1qlPrimaryIndex($"{indexPrefix}_Primary", false);
+
+                // create primary if enable; default true
+                if (Options.CreatePrimaryKeyIndex)
+                {
+                    manager.CreateN1qlPrimaryIndex($"{indexPrefix}_Primary", false);
+                }
+
                 manager.CreateN1qlIndex($"{indexPrefix}_Type", false, "type");
                 manager.CreateN1qlIndex($"{indexPrefix}_Id", false, "id");
                 manager.CreateN1qlIndex($"{indexPrefix}_Expire", false, "expire_on");
                 manager.CreateN1qlIndex($"{indexPrefix}_Name", false, "name");
+                manager.CreateN1qlIndex($"{indexPrefix}_FetchedAt", false, "fetched_at");
+                manager.CreateN1qlIndex($"{indexPrefix}_JobId", false, "job_id");
+                manager.CreateN1qlIndex($"{indexPrefix}_Key", false, "key");
             }
 
             JobQueueProvider provider = new JobQueueProvider(this);
