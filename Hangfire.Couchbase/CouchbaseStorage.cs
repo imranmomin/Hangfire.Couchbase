@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Linq;
 using System.Collections.Generic;
-
 using Couchbase;
 using Couchbase.Core;
 using Hangfire.Server;
@@ -98,11 +97,12 @@ namespace Hangfire.Couchbase
             IBucket bucket = Client.OpenBucket(Options.DefaultBucket);
             {
                 IBucketManager manager = bucket.CreateManager(bucket.Configuration.Username, bucket.Configuration.Password);
-                manager.CreateN1qlPrimaryIndex($"{indexPrefix}_Primary", false);
-                manager.CreateN1qlIndex($"{indexPrefix}_Type", false, "type");
-                manager.CreateN1qlIndex($"{indexPrefix}_Id", false, "id");
-                manager.CreateN1qlIndex($"{indexPrefix}_Expire", false, "expire_on");
-                manager.CreateN1qlIndex($"{indexPrefix}_Name", false, "name");
+
+                manager.CreateAndCheckN1qlPrimaryIndex($"{indexPrefix}_Primary");
+                manager.CreateAndCheckN1qlIndex($"{indexPrefix}_Type", "type");
+                manager.CreateAndCheckN1qlIndex($"{indexPrefix}_Id", "id");
+                manager.CreateAndCheckN1qlIndex($"{indexPrefix}_Expire", "expire_on");
+                manager.CreateAndCheckN1qlIndex($"{indexPrefix}_Name", "name");
             }
 
             JobQueueProvider provider = new JobQueueProvider(this);
