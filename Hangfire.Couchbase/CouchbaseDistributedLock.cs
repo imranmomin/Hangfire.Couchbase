@@ -6,6 +6,7 @@ using Couchbase.Core;
 using Hangfire.Logging;
 using Hangfire.Couchbase.Helper;
 using Hangfire.Couchbase.Documents;
+using Hangfire.Couchbase.Exceptions;
 
 namespace Hangfire.Couchbase
 {

@@ -7,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 #endif
 
 // ReSharper disable UnusedMember.Global
+// ReSharper disable once CheckNamespace
 namespace Hangfire
 {
     /// <summary>
