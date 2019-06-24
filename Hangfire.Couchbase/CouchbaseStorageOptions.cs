@@ -11,7 +11,7 @@ namespace Hangfire.Couchbase
     public class CouchbaseStorageOptions
     {
         internal string DefaultBucket { get; set; }
- 
+
         /// <summary>
         /// Get or sets the request timeout for Couchbase client. Default value set to 30 seconds
         /// </summary>
@@ -34,6 +34,17 @@ namespace Hangfire.Couchbase
         public TimeSpan QueuePollInterval { get; set; }
 
         /// <summary>
+        /// Gets or set the flag to create primary index. Default value - true
+        /// </summary>
+        public bool CreatePrimaryIndex { get; set; }
+
+        /// <summary>
+        /// Gets or set the flag to create default indexes. Default value - true
+        /// <para>Indexes will be created for fields - Id, Name, Expire_On, Type</para>
+        /// </summary>
+        public bool CreateDefaultIndexes { get; set; }
+
+        /// <summary>
         /// Create an instance of Couchbase Storage option with default values
         /// </summary>
         public CouchbaseStorageOptions()
@@ -42,6 +53,8 @@ namespace Hangfire.Couchbase
             ExpirationCheckInterval = TimeSpan.FromMinutes(2);
             CountersAggregateInterval = TimeSpan.FromMinutes(2);
             QueuePollInterval = TimeSpan.FromSeconds(15);
+            CreatePrimaryIndex = true;
+            CreateDefaultIndexes = true;
         }
     }
 }

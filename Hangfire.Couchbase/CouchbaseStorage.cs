@@ -95,11 +95,13 @@ namespace Hangfire.Couchbase
             configuration.Serializer = () => new DocumentDefaultSerializer();
             Client = new Cluster(configuration);
 
-            string indexPrefix = $"IDX_{defaultBucket}";
-
-            // index definition
-            (string name, bool isPrimary, string[] fields)[] indexDefinition =
+            if (Options.CreateDefaultIndexes)
             {
+                string indexPrefix = $"IDX_{defaultBucket}";
+
+                // index definition
+                (string name, bool isPrimary, string[] fields)[] indexDefinition =
+                {
                 ($"{indexPrefix}_Primary", true, null),
                 ($"{indexPrefix}_Type", false, new [] { "type" }),
                 ($"{indexPrefix}_Id", false, new[] { "id" }),
@@ -107,20 +109,21 @@ namespace Hangfire.Couchbase
                 ($"{indexPrefix}_Name", false, new[] { "name" })
             };
 
-            IBucket bucket = Client.OpenBucket(Options.DefaultBucket);
-            {
-                IBucketManager manager = bucket.CreateManager(bucket.Configuration.Username, bucket.Configuration.Password);
-
-                // create all the indexes
-                foreach ((string name, bool isPrimary, string[] fields) index in indexDefinition)
+                IBucket bucket = Client.OpenBucket(Options.DefaultBucket);
                 {
-                    if (index.isPrimary) manager.CreateN1qlPrimaryIndex(index.name, false);
-                    else manager.CreateN1qlIndex(index.name, false, index.fields);
-                }
+                    IBucketManager manager = bucket.CreateManager(bucket.Configuration.Username, bucket.Configuration.Password);
 
-                // check if all the required indexes are created
-                string[] indexes = indexDefinition.Select(i => i.name).ToArray();
-                manager.CheckIndexes(indexes); // will throw exception if any of the indexes don't exists
+                    // create all the indexes
+                    foreach ((string name, bool isPrimary, string[] fields) index in indexDefinition)
+                    {
+                        if (index.isPrimary && Options.CreatePrimaryIndex) manager.CreateN1qlPrimaryIndex(index.name, false);
+                        else manager.CreateN1qlIndex(index.name, false, index.fields);
+                    }
+
+                    // check if all the required indexes are created
+                    string[] indexes = indexDefinition.Select(i => i.name).ToArray();
+                    manager.CheckIndexes(indexes); // will throw exception if any of the indexes don't exists
+                }
             }
 
             JobQueueProvider provider = new JobQueueProvider(this);
