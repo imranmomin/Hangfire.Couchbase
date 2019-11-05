@@ -6,10 +6,10 @@ using System.Collections.Generic;
 using Couchbase;
 using Couchbase.Core;
 using Couchbase.Linq;
-using Hangfire.Server;
-using Hangfire.Common;
-using Hangfire.Storage;
 
+using Hangfire.Common;
+using Hangfire.Server;
+using Hangfire.Storage;
 using Hangfire.Couchbase.Queue;
 using Hangfire.Couchbase.Helper;
 using Hangfire.Couchbase.Documents;
@@ -231,15 +231,22 @@ namespace Hangfire.Couchbase
 
         public override string GetFirstByLowestScoreFromSet(string key, double fromScore, double toScore)
         {
+            return GetFirstByLowestScoreFromSet(key, fromScore, toScore, 1).FirstOrDefault();
+        }
+
+        public override List<string> GetFirstByLowestScoreFromSet(string key, double fromScore, double toScore, int count)
+        {
             if (key == null) throw new ArgumentNullException(nameof(key));
+            if (count <= 0) throw new ArgumentException("The value must be a positive number", nameof(count));
             if (toScore < fromScore) throw new ArgumentException("The `toScore` value must be higher or equal to the `fromScore` value.");
 
             BucketContext context = new BucketContext(bucket);
             return context.Query<Set>()
                 .Where(s => s.DocumentType == DocumentTypes.Set && s.Key == key && s.Score >= (int)fromScore && s.Score <= (int)toScore)
                 .OrderBy(s => s.Score)
+                .Take(count)
                 .Select(s => s.Value)
-                .FirstOrDefault();
+                .ToList();
         }
 
         #endregion
